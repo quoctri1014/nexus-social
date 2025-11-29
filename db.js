@@ -1,90 +1,71 @@
-// Tên file: db.js (ĐÃ CẬP NHẬT CHO CHAT NHÓM)
+// db.js - Cấu hình kết nối MySQL an toàn (cho TiDB Cloud)
+
 import mysql from 'mysql2/promise';
+import fs from 'fs';
+import dotenv from 'dotenv';
 
-/*
-  --- Bảng database nha  ---
-  Chạy các lệnh này trong công cụ MySQL của bạn (phpMyAdmin, Workbench):
-  
-  USE chatbot_db; -- Đảm bảo bạn đang dùng đúng database
+// 1. Đảm bảo đọc các biến từ file .env (nếu chạy cục bộ)
+dotenv.config();
 
-  -- Bảng users giữ nguyên
-  
-  -- 1. Bảng tin nhắn 1-1 (Giữ nguyên)
-  DROP TABLE IF EXISTS messages; 
-  CREATE TABLE messages (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    senderId INT NOT NULL,
-    recipientId INT NOT NULL,
-    content TEXT NOT NULL,
-    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (senderId) REFERENCES users(id),
-    FOREIGN KEY (recipientId) REFERENCES users(id)
-  );
+const DB_CA_PATH = process.env.DB_CA_PATH || './ca.pem';
+const DB_HOST = process.env.DB_HOST || 'localhost';
 
-  -- 2. Bảng lưu thông tin nhóm
-  DROP TABLE IF EXISTS groups;
-  CREATE TABLE groups (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    creatorId INT NOT NULL,
-    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (creatorId) REFERENCES users(id)
-  );
+const dbConfig = {
+  // Lấy từ Biến Môi Trường (Quan trọng khi Deploy)
+  host: DB_HOST,
+  port: process.env.DB_PORT || 4000,
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '', // Nếu đang chạy local
+  database: process.env.DB_DATABASE || 'chatbot_db',
 
-  -- 3. Bảng liên kết User và Nhóm (Ai ở trong nhóm nào)
-  DROP TABLE IF EXISTS group_members;
-  CREATE TABLE group_members (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    groupId INT NOT NULL,
-    userId INT NOT NULL,
-    joinedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (groupId) REFERENCES groups(id) ON DELETE CASCADE,
-    FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
-    UNIQUE KEY (groupId, userId) -- Đảm bảo mỗi user chỉ ở trong nhóm 1 lần
-  );
-
-  -- 4. Bảng tin nhắn nhóm
-  DROP TABLE IF EXISTS group_messages;
-  CREATE TABLE group_messages (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    groupId INT NOT NULL,
-    senderId INT NOT NULL,
-    content TEXT NOT NULL,
-    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (groupId) REFERENCES groups(id) ON DELETE CASCADE,
-    FOREIGN KEY (senderId) REFERENCES users(id)
-  );
-*/
-// ----------------------------------------
-
-// Cấu hình kết nối database (giữ nguyên, đảm bảo mật khẩu đúng)
-const pool = mysql.createPool({
-  host: 'localhost',
-  user: 'root',
-  password: '', // <-- Nhập mật khẩu CỦA BẠN (nếu có)
-  database: 'chatbot_db',
+  // Thiết lập Pool Connection
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-  // Thêm 2 dòng này để xử lý Promise và Transaction tốt hơn
   namedPlaceholders: true,
-});
+
+  // --- 2. CẤU HÌNH TLS/SSL CHO TiDB CLOUD ---
+  // Chỉ thêm cấu hình SSL nếu host không phải là localhost (nghĩa là đang kết nối công khai)
+  ...(DB_HOST !== 'localhost' ? {
+      ssl: {
+        // Đọc nội dung file chứng chỉ CA (.pem) đã tải xuống
+        ca: fs.readFileSync(DB_CA_PATH),
+        // Bật xác minh máy chủ
+        rejectUnauthorized: true 
+      }
+  } : {})
+};
+
+// Tạo Pool Connection
+const pool = mysql.createPool(dbConfig);
 
 // Kiểm tra kết nối
 pool.getConnection()
   .then(connection => {
-    console.log('✅ Kết nối Database MySQL thành công!');
+    console.log("✅ Database connected successfully!");
     connection.release();
   })
   .catch(err => {
-    console.error('❌ Lỗi kết nối Database:', err.message);
+    console.error("❌ Database connection failed:", err.message);
     if (err.code === 'ER_BAD_DB_ERROR') {
-         console.error('Lỗi: Database "chatbot_db" không tồn tại. Vui lòng tạo nó trước.');
-    } else if (err.code === 'ECONNREFUSED') {
-         console.error('Lỗi: Không thể kết nối đến MySQL server. Server có đang chạy không?');
+      console.error('Lỗi: Database không tồn tại.');
+    } else if (err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND') {
+      console.error(`Lỗi: Không thể kết nối đến host ${DB_HOST}. Server database có đang chạy không?`);
     } else if (err.code === 'ER_ACCESS_DENIED_ERROR') {
-         console.error('Lỗi: Sai user hoặc mật khẩu MySQL.');
+      console.error('Lỗi: Sai user hoặc mật khẩu database.');
+    } else if (err.code === 'ENOENT' && DB_HOST !== 'localhost') {
+        console.error(`Lỗi: Không tìm thấy file chứng chỉ CA tại đường dẫn: ${DB_CA_PATH}.`);
     }
+    process.exit(1);
   });
 
-export default pool;
+
+// --- 3. EXPORT CHUẨN ---
+// Export module để server.js có thể sử dụng (ví dụ: db.query(...))
+const db = {
+    query: (sql, params) => pool.execute(sql, params),
+    getConnection: () => pool.getConnection(),
+    pool: pool 
+};
+
+export default db;
