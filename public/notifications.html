@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Thông báo - Nexus</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link rel="stylesheet" href="home-style.css" />
+    <style>
+      /* CSS Riêng cho trang thông báo */
+      .notif-container {
+        width: 100%;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+      }
+      .section-title {
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--text-main);
+      }
+
+      .notif-list-full {
+        background: white;
+        border-radius: 10px;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+      .notif-item-full {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        padding: 15px 20px;
+        border-bottom: 1px solid #f0f2f5;
+        cursor: pointer;
+        transition: 0.2s;
+      }
+      .notif-item-full:hover {
+        background: #f9fafb;
+      }
+      .notif-item-full:last-child {
+        border-bottom: none;
+      }
+
+      .notif-img-full img {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        object-fit: cover;
+      }
+      .notif-content-full {
+        flex: 1;
+      }
+      .notif-text {
+        font-size: 15px;
+        color: var(--text-main);
+        margin-bottom: 5px;
+        line-height: 1.4;
+      }
+      .notif-text b {
+        font-weight: 600;
+      }
+      .notif-time {
+        font-size: 12px;
+        color: #65676b;
+      }
+      .notif-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-left: 10px;
+      }
+
+      .icon-req {
+        background: #e7f3ff;
+        color: #1877f2;
+      }
+      .icon-post {
+        background: #e4e6eb;
+        color: #65676b;
+      }
+      .empty-state {
+        text-align: center;
+        padding: 40px;
+        color: #65676b;
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="navbar">
+      <div class="nav-container">
+        <div class="nav-left">
+          <div
+            class="logo"
+            onclick="window.location.href='/home.html'"
+            style="cursor: pointer"
+          >
+            <i class="fab fa-neos"></i> Nexus
+          </div>
+        </div>
+        <div class="nav-center">
+          <a href="/home.html" class="nav-link" title="Trang chủ"
+            ><i class="fas fa-home"></i
+          ></a>
+          <a href="/friends.html" class="nav-link" title="Bạn bè"
+            ><i class="fas fa-users"></i
+          ></a>
+          <a href="/chat.html" class="nav-link" title="Tin nhắn"
+            ><i class="fas fa-comment-alt"></i
+          ></a>
+          <a href="#" class="nav-link active" title="Thông báo">
+            <i class="fas fa-bell"></i>
+            <span class="badge hidden" id="nav-notif-badge">0</span>
+          </a>
+        </div>
+        <div class="nav-right">
+          <div class="user-profile">
+            <img id="nav-avatar" src="" />
+            <div class="user-info-nav">
+              <span id="nav-username">Loading...</span>
+            </div>
+          </div>
+          <div class="nav-btn" onclick="logout()">
+            <i class="fas fa-sign-out-alt"></i>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <div class="main-layout">
+      <aside class="sidebar-left">
+        <div class="sidebar-content">
+          <div class="menu-item" onclick="window.location.href='/home.html'">
+            <i class="fas fa-newspaper" style="color: #1877f2"></i
+            ><span>Bảng tin</span>
+          </div>
+          <div class="menu-item" onclick="window.location.href='/friends.html'">
+            <i class="fas fa-users" style="color: #1da1f2"></i
+            ><span>Bạn bè</span>
+          </div>
+          <div class="menu-item" onclick="window.location.href='/chat.html'">
+            <i class="fas fa-comments" style="color: #45bd62"></i
+            ><span>Messenger</span>
+          </div>
+        </div>
+      </aside>
+
+      <main class="feed-content" style="width: 100%; max-width: 800px">
+        <div class="notif-container">
+          <div class="section-header">
+            <div class="section-title">Thông báo</div>
+            <a
+              href="#"
+              style="color: #1877f2; font-size: 14px; text-decoration: none"
+              >Đánh dấu tất cả là đã đọc</a
+            >
+          </div>
+
+          <div class="notif-list-full" id="notification-list-container">
+            <div class="empty-state">Đang tải thông báo...</div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script src="notifications.js"></script>
+  </body>
+</html>

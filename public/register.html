@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Đăng ký - Nexus</title>
+    <link rel="stylesheet" href="style.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+  </head>
+  <body>
+    <div class="auth-container">
+      <div class="auth-card">
+        <div class="brand-logo"><i class="fab fa-neos"></i></div>
+        <h2>Tạo tài khoản Nexus</h2>
+        <p class="sub-text">Kết nối với thế giới của bạn.</p>
+
+        <div id="auth-message" class="message-display"></div>
+
+        <form id="step-1-form" class="step-container">
+          <div class="steps-indicator">
+            <div class="dot active"></div>
+            <div class="dot"></div>
+            <div class="dot"></div>
+          </div>
+          <div class="form-group">
+            <div class="input-wrapper">
+              <i class="fas fa-user"></i
+              ><input
+                type="text"
+                id="reg-username"
+                placeholder="Tên đăng nhập"
+                required
+              />
+            </div>
+          </div>
+          <div class="form-group">
+            <div class="input-wrapper">
+              <i class="fas fa-envelope"></i
+              ><input
+                type="email"
+                id="reg-email"
+                placeholder="Email (để nhận OTP)"
+                required
+              />
+            </div>
+          </div>
+          <div class="form-group">
+            <div class="input-wrapper">
+              <i class="fas fa-lock"></i
+              ><input
+                type="password"
+                id="reg-password"
+                placeholder="Mật khẩu"
+                required
+              />
+            </div>
+          </div>
+          <div class="form-group">
+            <div class="input-wrapper">
+              <i class="fas fa-lock"></i
+              ><input
+                type="password"
+                id="reg-confirm-password"
+                placeholder="Nhập lại mật khẩu"
+                required
+              />
+            </div>
+          </div>
+          <button type="submit" class="btn-primary">
+            Tiếp tục <i class="fas fa-arrow-right"></i>
+          </button>
+          <div class="switch-auth" id="login-link">
+            Đã có tài khoản? <a href="/index.html">Đăng nhập</a>
+          </div>
+        </form>
+
+        <form id="step-2-form" class="step-container hidden">
+          <div class="steps-indicator">
+            <div class="dot"></div>
+            <div class="dot active"></div>
+            <div class="dot"></div>
+          </div>
+          <p style="font-size: 14px; margin-bottom: 15px">
+            Mã xác thực đã được gửi tới email của bạn. Vui lòng kiểm tra (cả mục
+            Spam).
+          </p>
+          <div class="form-group">
+            <div class="input-wrapper">
+              <i class="fas fa-key"></i
+              ><input
+                type="text"
+                id="reg-otp"
+                placeholder="Nhập mã OTP (6 số)"
+                required
+                style="
+                  letter-spacing: 5px;
+                  text-align: center;
+                  font-weight: bold;
+                "
+              />
+            </div>
+          </div>
+          <button type="submit" class="btn-primary">Xác thực</button>
+        </form>
+
+        <form id="step-3-form" class="step-container hidden">
+          <div class="steps-indicator">
+            <div class="dot"></div>
+            <div class="dot"></div>
+            <div class="dot active"></div>
+          </div>
+          <div class="form-group">
+            <label>Tên hiển thị (Nickname)</label>
+            <div class="input-wrapper">
+              <i class="fas fa-id-card"></i
+              ><input
+                type="text"
+                id="reg-nickname"
+                placeholder="VD: Nguyễn Văn A"
+                required
+              />
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Chọn Avatar mặc định</label>
+            <select id="reg-avatar">
+              <option value="avatar1.png">👦 Nam</option>
+              <option value="avatar2.png">👧 Nữ</option>
+              <option value="avatar3.png">🤖 Robot</option>
+              <option value="avatar4.png">🐶 Cún con</option>
+            </select>
+          </div>
+          <button type="submit" class="btn-primary">
+            Hoàn tất & Đăng nhập
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <script src="auth.js"></script>
+  </body>
+</html>

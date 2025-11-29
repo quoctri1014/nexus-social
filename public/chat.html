@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nexus Messenger</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link rel="stylesheet" href="chat-style.css" />
+  </head>
+  <body data-theme="dark">
+    <nav class="navbar glass-header">
+      <div class="nav-left">
+        <div class="logo" onclick="location.href='/home.html'">
+          <svg
+            width="32"
+            height="32"
+            viewBox="0 0 40 40"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <rect width="40" height="40" rx="12" fill="url(#paint0_linear)" />
+            <path
+              d="M12 29V11L28 29V11"
+              stroke="white"
+              stroke-width="4"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <defs>
+              <linearGradient
+                id="paint0_linear"
+                x1="0"
+                y1="0"
+                x2="40"
+                y2="40"
+                gradientUnits="userSpaceOnUse"
+              >
+                <stop stop-color="#6366f1" />
+                <stop offset="1" stop-color="#a855f7" />
+              </linearGradient>
+            </defs>
+          </svg>
+          <span
+            style="
+              font-weight: 800;
+              background: linear-gradient(135deg, #6366f1, #a855f7);
+              -webkit-background-clip: text;
+              -webkit-text-fill-color: transparent;
+            "
+            >Nexus</span
+          >
+        </div>
+        <div class="nav-search">
+          <i class="fas fa-search"></i>
+          <input type="text" placeholder="Tìm kiếm trên Nexus" />
+        </div>
+      </div>
+
+      <div class="nav-center">
+        <a href="/home.html" class="nav-item" title="Trang chủ"
+          ><i class="fas fa-home"></i
+        ></a>
+        <a href="/friends.html" class="nav-item" title="Bạn bè"
+          ><i class="fas fa-user-friends"></i
+        ></a>
+        <a href="#" class="nav-item active" title="Tin nhắn"
+          ><i class="fas fa-comment-alt"></i
+        ></a>
+        <a href="/notifications.html" class="nav-item" title="Thông báo"
+          ><i class="fas fa-bell"></i
+        ></a>
+      </div>
+
+      <div class="nav-right">
+        <div class="nav-profile">
+          <img
+            id="nav-avatar"
+            src="https://ui-avatars.com/api/?name=User&background=random"
+          />
+          <span class="nav-username">Tôi</span>
+        </div>
+        <div class="icon-circle-btn" id="theme-toggle" title="Đổi giao diện">
+          <i class="fas fa-adjust"></i>
+        </div>
+        <div
+          class="icon-circle-btn"
+          onclick="location.href='/logout'"
+          title="Đăng xuất"
+        >
+          <i class="fas fa-sign-out-alt"></i>
+        </div>
+      </div>
+    </nav>
+
+    <div class="chat-container">
+      <aside class="sidebar glass-panel">
+        <div class="sidebar-header">
+          <h3>Đoạn chat</h3>
+          <div class="edit-btn"><i class="fas fa-edit"></i></div>
+        </div>
+
+        <div class="sidebar-search">
+          <i class="fas fa-search"></i>
+          <input type="text" placeholder="Tìm bạn bè..." />
+        </div>
+
+        <div class="user-list custom-scroll" id="user-list"></div>
+      </aside>
+
+      <main class="chat-area">
+        <header class="chat-header glass-panel">
+          <div class="header-user">
+            <div class="avatar-circle">
+              <img
+                id="header-avatar"
+                src="https://ui-avatars.com/api/?name=Chat"
+              />
+              <div class="status-indicator online"></div>
+            </div>
+            <div class="header-text">
+              <h3 id="chat-header-title">Chọn hội thoại</h3>
+              <span id="chat-status" class="status-sub">Sẵn sàng kết nối</span>
+            </div>
+          </div>
+
+          <div class="header-tools">
+            <button
+              class="tool-btn"
+              id="call-button"
+              style="display: none"
+              title="Gọi thoại"
+            >
+              <i class="fas fa-phone"></i>
+            </button>
+            <button
+              class="tool-btn"
+              id="video-call-button"
+              style="display: none"
+              title="Video Call"
+            >
+              <i class="fas fa-video"></i>
+            </button>
+            <button class="tool-btn" id="chat-settings-btn" title="Cài đặt">
+              <i class="fas fa-cog"></i>
+            </button>
+          </div>
+        </header>
+
+        <div id="chat-content-container">
+          <div class="chat-overlay"></div>
+          <div id="messages" class="custom-scroll">
+            <div class="empty-placeholder">
+              <div class="empty-icon">
+                <i class="fab fa-facebook-messenger"></i>
+              </div>
+              <p>Chọn một người bạn để bắt đầu trò chuyện.</p>
+            </div>
+          </div>
+        </div>
+
+        <form class="chat-footer-wrapper" id="chat-form">
+          <div class="chat-footer glass-panel">
+            <input type="file" id="chat-file-input" hidden />
+            <button
+              type="button"
+              class="btn-icon"
+              id="attach-btn"
+              title="Gửi ảnh/file"
+            >
+              <i class="fas fa-plus-circle"></i>
+            </button>
+
+            <div class="input-box">
+              <input
+                type="text"
+                id="message-input"
+                placeholder="Nhập tin nhắn..."
+                autocomplete="off"
+                disabled
+              />
+              <button type="button" class="btn-emoji" id="emoji-btn">
+                <i class="fas fa-smile"></i>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              class="btn-icon"
+              id="voice-btn"
+              title="Gửi tin nhắn thoại"
+            >
+              <i class="fas fa-microphone"></i>
+            </button>
+
+            <button type="submit" class="btn-send" id="send-btn" disabled>
+              <i class="fas fa-paper-plane"></i>
+            </button>
+          </div>
+
+          <div class="emoji-picker hidden" id="emoji-picker">
+            <div class="emoji-grid">
+              <span>😀</span><span>😂</span><span>😍</span><span>🥰</span
+              ><span>😎</span> <span>😭</span><span>😡</span><span>👍</span
+              ><span>👎</span><span>❤️</span> <span>🎉</span><span>🔥</span
+              ><span>💩</span><span>👻</span><span>👀</span>
+            </div>
+          </div>
+        </form>
+      </main>
+    </div>
+
+    <div id="bg-modal" class="modal-overlay hidden">
+      <div class="modal-box glass-panel">
+        <h3>Đổi hình nền</h3>
+        <input
+          type="text"
+          id="bg-url-input"
+          placeholder="Dán URL hình ảnh..."
+        />
+        <button id="save-bg-btn">Lưu thay đổi</button>
+        <div class="close-modal" id="close-bg-modal">Đóng</div>
+      </div>
+    </div>
+
+    <div id="file-modal" class="modal-overlay hidden">
+      <div class="modal-box glass-panel">
+        <h3>Gửi tệp đính kèm</h3>
+        <div
+          class="upload-zone"
+          onclick="document.getElementById('file-input').click()"
+        >
+          <i class="fas fa-cloud-upload-alt"></i>
+          <p>Chọn file</p>
+          <input type="file" id="file-input" multiple hidden />
+        </div>
+        <div id="selected-files-list"></div>
+        <button id="send-file">Gửi ngay</button>
+        <div class="close-modal" id="cancel-file">Hủy</div>
+      </div>
+    </div>
+
+    <div id="call-window" class="call-overlay hidden">
+      <div class="video-container">
+        <video id="remoteVideo" autoplay playsinline></video>
+        <video id="localVideo" autoplay playsinline muted></video>
+      </div>
+      <div class="call-actions">
+        <button class="call-btn" id="toggle-mic">
+          <i class="fas fa-microphone"></i>
+        </button>
+        <button class="call-btn hangup" id="end-call-button">
+          <i class="fas fa-phone-slash"></i>
+        </button>
+        <button class="call-btn" id="toggle-cam">
+          <i class="fas fa-video"></i>
+        </button>
+      </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="main.js"></script>
+    <script src="file-handler.js"></script>
+    <script src="webrtc.js"></script>
+  </body>
+</html>

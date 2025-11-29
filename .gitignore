@@ -1,0 +1,13 @@
+# Bỏ qua thư mục thư viện nặng (Cái này nặng nhất, bắt buộc phải bỏ)
+node_modules/
+
+# Bỏ qua file chứa mật khẩu và API Key (Để không bị lộ Key)
+.env
+
+# Bỏ qua các file rác của hệ điều hành
+.DS_Store
+Thumbs.db
+
+# Bỏ qua thư mục upload (Nếu bạn không muốn đẩy ảnh test lên)
+public/uploads/*
+!public/uploads/.gitkeep
