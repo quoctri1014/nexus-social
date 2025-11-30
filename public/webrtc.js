@@ -1,10 +1,11 @@
-/**
- * public/webrtc.js - PHIÊN BẢN UPDATE UI NÚT BẤM
- */
-
 document.addEventListener("DOMContentLoaded", () => {
   if (!window.socket || !window.location.pathname.endsWith("/chat.html")) return;
 
+  // SAFETY: Force Hide on Load (Sửa lỗi tự hiện modal)
+  document.getElementById("incoming-call-modal").classList.add("hidden");
+  document.getElementById("call-window").classList.add("hidden");
+
+  // Elements
   const callButton = document.getElementById("call-button");
   const videoCallButton = document.getElementById("video-call-button");
   const endCallButton = document.getElementById("end-call-button");
@@ -29,11 +30,10 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentRecipientId = null;
 
   // Helper
-  const playRingtone = () => { if(ringtone) { ringtone.currentTime=0; ringtone.play().catch(console.error); } };
+  const playRingtone = () => { if(ringtone) { ringtone.currentTime=0; ringtone.play().catch(() => {}); } };
   const stopRingtone = () => { if(ringtone) { ringtone.pause(); ringtone.currentTime=0; } };
 
   const handleMediaError = (err) => {
-      console.error("Media Error:", err);
       let msg = "Lỗi thiết bị.";
       if (err.name === 'NotAllowedError') msg = "⚠️ Bạn đã chặn Camera/Mic. Hãy mở khóa trên thanh địa chỉ.";
       else if (err.name === 'NotFoundError') msg = "❌ Không tìm thấy Camera/Mic.";
@@ -65,9 +65,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const startCall = async (isVideo) => {
     if (!window.currentChatContext.id) return alert("Chọn người để gọi.");
     currentRecipientId = window.currentChatContext.id;
-    // Reset buttons
-    toggleMic.classList.remove("off"); toggleMic.innerHTML = '<i class="fas fa-microphone"></i>';
-    toggleCam.classList.remove("off"); toggleCam.innerHTML = '<i class="fas fa-video"></i>';
+    toggleMic.style.background = "rgba(255,255,255,0.2)";
+    toggleCam.style.background = "rgba(255,255,255,0.2)";
 
     try {
       localStream = await navigator.mediaDevices.getUserMedia({ video: isVideo, audio: true });
@@ -101,10 +100,6 @@ document.addEventListener("DOMContentLoaded", () => {
             localVideo.srcObject = localStream;
             callWindow.classList.remove("hidden");
             
-            // Reset buttons
-            toggleMic.classList.remove("off"); toggleMic.innerHTML = '<i class="fas fa-microphone"></i>';
-            toggleCam.classList.remove("off"); toggleCam.innerHTML = '<i class="fas fa-video"></i>';
-
             peerConnection = createPeerConnection(localStream);
             await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
             const answer = await peerConnection.createAnswer();
@@ -147,28 +142,17 @@ document.addEventListener("DOMContentLoaded", () => {
   videoCallButton.addEventListener("click", () => startCall(true));
   endCallButton.addEventListener("click", () => hangUp(true));
 
-  // --- LOGIC ĐỔI MÀU NÚT BẤM (TOGGLE) ---
   toggleMic.addEventListener("click", () => {
     if (localStream) {
-      const audioTrack = localStream.getAudioTracks()[0];
-      if (audioTrack) {
-          audioTrack.enabled = !audioTrack.enabled;
-          // Toggle class 'off'
-          toggleMic.classList.toggle("off", !audioTrack.enabled);
-          // Đổi Icon
-          toggleMic.innerHTML = audioTrack.enabled ? '<i class="fas fa-microphone"></i>' : '<i class="fas fa-microphone-slash"></i>';
-      }
+      const t = localStream.getAudioTracks()[0];
+      if (t) { t.enabled = !t.enabled; toggleMic.style.background = t.enabled ? "rgba(255,255,255,0.2)" : "#ef4444"; }
     }
   });
 
   toggleCam.addEventListener("click", () => {
     if (localStream) {
-      const videoTrack = localStream.getVideoTracks()[0];
-      if (videoTrack) {
-          videoTrack.enabled = !videoTrack.enabled;
-          toggleCam.classList.toggle("off", !videoTrack.enabled);
-          toggleCam.innerHTML = videoTrack.enabled ? '<i class="fas fa-video"></i>' : '<i class="fas fa-video-slash"></i>';
-      }
+      const t = localStream.getVideoTracks()[0];
+      if (t) { t.enabled = !t.enabled; toggleCam.style.background = t.enabled ? "rgba(255,255,255,0.2)" : "#ef4444"; }
     }
   });
 
