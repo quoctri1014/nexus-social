@@ -1,8 +1,9 @@
 /* ================= CONFIG ================= */
 :root {
-  --primary: #1877f2;
+  --primary-gradient: linear-gradient(135deg, #6366f1, #a855f7);
+  --primary-color: #1877f2;
   --bg-dark: #0f172a;
-  --glass-bg: rgba(30, 41, 59, 0.85); /* Tăng độ đậm để dễ nhìn */
+  --glass-bg: rgba(30, 41, 59, 0.85);
   --glass-border: rgba(255, 255, 255, 0.1);
   --text-main: #f8fafc;
   --text-sub: #94a3b8;
@@ -17,623 +18,226 @@
   --text-sub: #65676b;
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-  outline: none;
-}
+* { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
+
 body {
   font-family: "Inter", sans-serif;
   background-color: var(--bg-dark);
   color: var(--text-main);
   height: 100vh;
-  overflow: hidden; /* QUAN TRỌNG: Chặn cuộn trang web */
+  overflow: hidden; /* Chặn cuộn trang */
   background-image: url("https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?q=80&w=2574&auto=format&fit=crop");
   background-size: cover;
   background-position: center;
 }
 
-/* NAVBAR */
+/* ================= 1. NAVBAR ================= */
 .navbar {
   height: var(--nav-height);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  display: flex; justify-content: space-between; align-items: center;
   padding: 0 20px;
   background: var(--glass-bg);
   border-bottom: 1px solid var(--glass-border);
-  position: fixed;
-  top: 0;
-  width: 100%;
-  z-index: 100;
+  position: fixed; top: 0; width: 100%; z-index: 100;
   backdrop-filter: blur(10px);
 }
-/* ... (Giữ nguyên style navbar con như cũ) ... */
-.nav-left,
-.nav-center,
-.nav-right {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  font-weight: 800;
-  font-size: 20px;
-}
-.nav-search {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 20px;
-  padding: 0 15px;
-  height: 38px;
-  display: flex;
-  align-items: center;
-  width: 250px;
-}
-.nav-search input {
-  background: transparent;
-  border: none;
-  color: var(--text-main);
-  width: 100%;
-}
-.nav-item {
-  width: 60px;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 22px;
-  color: var(--text-sub);
-  text-decoration: none;
-  transition: 0.2s;
-}
-.nav-item.active {
-  color: var(--primary);
-  border-bottom: 3px solid var(--primary);
-}
-.icon-circle-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
 
-/* AVATAR FIX (ĐẢM BẢO TRÒN 100%) */
-#nav-avatar,
-.user-avatar img,
-.avatar-circle img {
-  width: 100%;
-  height: 100%;
-  border-radius: 50% !important;
+.nav-left { display: flex; align-items: center; gap: 20px; }
+.logo { font-size: 24px; font-weight: 800; color: var(--primary-color); display: flex; align-items: center; gap: 8px; cursor: pointer; }
+
+.nav-search {
+  position: relative; background: rgba(255, 255, 255, 0.1);
+  border-radius: 20px; padding: 0 15px; height: 40px;
+  display: flex; align-items: center; width: 260px;
+}
+.nav-search input { background: transparent; border: none; color: var(--text-main); width: 100%; font-size: 14px; }
+
+.nav-center { display: flex; gap: 10px; height: 100%; }
+.nav-item {
+  width: 60px; height: 100%; display: flex; align-items: center; justify-content: center;
+  font-size: 24px; color: var(--text-sub); text-decoration: none;
+  position: relative; transition: 0.2s;
+}
+.nav-item:hover { background: rgba(255, 255, 255, 0.05); }
+.nav-item.active { color: var(--primary-color); border-bottom: 3px solid var(--primary-color); }
+
+.nav-right { display: flex; align-items: center; gap: 15px; }
+.nav-profile { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.nav-username { font-weight: 600; font-size: 14px; }
+.icon-circle-btn {
+  width: 40px; height: 40px; border-radius: 50%; background: rgba(255, 255, 255, 0.1);
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.icon-circle-btn:hover { background: rgba(255, 255, 255, 0.2); }
+
+/* Avatar Styling (Gộp chung) */
+#nav-avatar, .user-avatar img, .avatar-circle img {
+  border-radius: 50% !important; 
   object-fit: cover;
   background-color: #e2e8f0;
 }
-#nav-avatar {
-  width: 36px;
-  height: 36px;
-  border: 2px solid var(--glass-border);
-}
-.user-avatar {
-  width: 48px;
-  height: 48px;
-  position: relative;
-  flex-shrink: 0;
-}
-.avatar-circle {
-  width: 42px;
-  height: 42px;
-  position: relative;
-  flex-shrink: 0;
-}
+#nav-avatar { width: 36px; height: 36px; border: 2px solid var(--glass-border); }
 
-/* AI ICON FIX */
-.ai-icon-wrapper {
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #1e293b;
-  border: 2px solid #6366f1;
-  box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
-}
-.ai-avatar-icon {
-  font-size: 22px;
-  color: white;
-}
-
-/* --- MAIN LAYOUT (FIX LỖI MẤT FOOTER) --- */
+/* ================= 2. CHAT CONTAINER ================= */
 .chat-container {
-  display: flex;
-  margin-top: var(--nav-height);
-  height: calc(100vh - var(--nav-height)); /* Chiều cao cố định trừ Navbar */
-  width: 100%;
+  display: flex; margin-top: var(--nav-height);
+  height: calc(100vh - var(--nav-height)); width: 100%;
   overflow: hidden; /* Chặn tràn */
 }
 
 /* SIDEBAR */
 .sidebar {
-  width: 320px;
-  display: flex;
-  flex-direction: column;
+  width: 320px; display: flex; flex-direction: column;
   border-right: 1px solid var(--glass-border);
-  background: var(--glass-bg);
-  backdrop-filter: blur(16px);
-  flex-shrink: 0; /* Không cho sidebar co lại */
+  background: var(--glass-bg); backdrop-filter: blur(16px);
+  flex-shrink: 0;
 }
-.sidebar-header {
-  padding: 20px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.sidebar-search {
-  margin: 0 15px 15px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 20px;
-  padding: 10px 15px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.sidebar-search input {
-  background: transparent;
-  border: none;
-  color: var(--text-main);
-  width: 100%;
-}
-.user-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: 0 10px;
-} /* Scroll user list */
+.sidebar-header { padding: 20px; display: flex; justify-content: space-between; align-items: center; }
+.sidebar-search { margin: 0 15px 15px; background: rgba(255, 255, 255, 0.05); border-radius: 20px; padding: 10px 15px; display: flex; align-items: center; gap: 10px; }
+.sidebar-search input { background: transparent; border: none; color: var(--text-main); width: 100%; }
 
+.user-list { flex: 1; overflow-y: auto; padding: 0 10px; }
 .user-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  border-radius: 12px;
-  cursor: pointer;
-  margin-bottom: 4px;
-  transition: 0.2s;
+  display: flex; align-items: center; gap: 12px; padding: 12px;
+  border-radius: 12px; cursor: pointer; transition: 0.2s; margin-bottom: 4px;
 }
-.user-item:hover {
-  background: rgba(255, 255, 255, 0.05);
-}
-.user-item.active {
-  background: rgba(24, 119, 242, 0.15);
-  border: 1px solid rgba(24, 119, 242, 0.3);
-}
+.user-item:hover { background: rgba(255, 255, 255, 0.05); }
+.user-item.active { background: rgba(24, 119, 242, 0.15); border: 1px solid rgba(24, 119, 242, 0.3); }
+
+.user-avatar { width: 48px; height: 48px; position: relative; flex-shrink: 0; }
 .status-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  border: 2px solid var(--bg-dark);
-  position: absolute;
-  bottom: 0;
-  right: 0;
+  width: 12px; height: 12px; border-radius: 50%;
+  border: 2px solid var(--bg-dark); position: absolute; bottom: 0; right: 0;
 }
-.status-dot.online {
-  background: #31a24c;
-}
-.status-dot.offline {
-  background: #ccc;
-}
-.user-info {
-  flex: 1;
-  overflow: hidden;
-}
-.user-name {
-  font-weight: 600;
-  font-size: 15px;
-}
+.status-dot.online { background: #31a24c; }
+.status-dot.offline { background: #ccc; }
+.user-info { flex: 1; overflow: hidden; }
+.user-name { font-weight: 600; font-size: 15px; }
 
-/* CHAT AREA (CỘT PHẢI) */
+/* MAIN CHAT AREA */
 .chat-area {
-  flex: 1;
-  display: flex;
-  flex-direction: column; /* Xếp dọc: Header -> Content -> Footer */
-  position: relative;
-  overflow: hidden; /* Quan trọng: Ngăn tràn */
-  min-width: 0; /* Fix flexbox text overflow */
+  flex: 1; display: flex; flex-direction: column; position: relative;
+  overflow: hidden; min-width: 0;
 }
-
 .chat-header {
-  height: 70px;
-  padding: 0 25px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: var(--glass-bg);
-  border-bottom: 1px solid var(--glass-border);
-  backdrop-filter: blur(10px);
-  flex-shrink: 0; /* Header cố định chiều cao */
+  height: 70px; padding: 0 25px;
+  display: flex; justify-content: space-between; align-items: center;
+  background: var(--glass-bg); border-bottom: 1px solid var(--glass-border);
+  backdrop-filter: blur(10px); flex-shrink: 0;
 }
-.header-user {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
+.header-user { display: flex; align-items: center; gap: 15px; }
+.avatar-circle { width: 42px; height: 42px; position: relative; margin-right: 15px; }
 .tool-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: none;
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text-main);
-  font-size: 18px;
-  cursor: pointer;
-  margin-left: 5px;
+  width: 40px; height: 40px; border-radius: 50%; border: none;
+  background: rgba(255, 255, 255, 0.05); color: var(--text-main);
+  font-size: 18px; cursor: pointer; margin-left: 8px; transition: 0.2s;
 }
+.tool-btn:hover { background: var(--text-main); color: var(--bg-dark); }
 
-/* --- KHUNG CHAT CONTENT (FIX LỖI SCROLL) --- */
+/* CONTENT & MESSAGES */
 #chat-content-container {
-  flex: 1; /* Chiếm hết khoảng trống còn lại */
-  position: relative;
-  background-size: cover;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden; /* Ẩn thanh cuộn của container cha */
-  min-height: 0; /* Bắt buộc cho Flexbox scroll */
+  flex: 1; position: relative; background-size: cover;
+  display: flex; flex-direction: column;
+  overflow: hidden; min-height: 0;
 }
-
-.chat-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(15, 23, 42, 0.65);
-  z-index: 0;
-}
-
+.chat-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.65); z-index: 0; }
 #messages {
-  flex: 1;
-  overflow-y: auto; /* Chỉ hiện thanh cuộn ở đây */
-  padding: 20px 30px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  z-index: 1;
-  scroll-behavior: smooth;
+  flex: 1; overflow-y: auto; padding: 20px 30px;
+  display: flex; flex-direction: column; gap: 10px; z-index: 1;
 }
 
 .message {
-  max-width: 65%;
-  padding: 12px 16px;
-  font-size: 15px;
-  border-radius: 18px;
-  position: relative;
-  word-wrap: break-word;
+  max-width: 65%; padding: 12px 16px; font-size: 15px;
+  border-radius: 18px; position: relative; word-wrap: break-word;
 }
 .message.other {
-  align-self: flex-start;
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text-main);
+  align-self: flex-start; background: rgba(255, 255, 255, 0.1);
+  color: var(--text-main); backdrop-filter: blur(5px);
   border-bottom-left-radius: 4px;
-  backdrop-filter: blur(5px);
 }
 .message.user {
-  align-self: flex-end;
-  background: var(--primary);
-  color: white;
-  border-bottom-right-radius: 4px;
+  align-self: flex-end; background: var(--primary-color);
+  color: white; border-bottom-right-radius: 4px;
 }
-.timestamp {
-  display: block;
-  font-size: 11px;
-  margin-top: 5px;
-  opacity: 0.7;
-  text-align: right;
-}
+.timestamp { display: block; font-size: 11px; margin-top: 5px; opacity: 0.7; text-align: right; }
 
-/* --- CHAT FOOTER (FIX LỖI MẤT FOOTER) --- */
-.chat-footer-wrapper {
-  padding: 20px;
-  z-index: 10;
-  position: relative;
-  flex-shrink: 0; /* QUAN TRỌNG: Không bao giờ bị co lại */
-  background: transparent;
-}
+/* MEDIA STYLES */
+.message.image-message { padding: 8px; }
+.message.image-message .msg-image { max-width: 100%; max-height: 300px; border-radius: 10px; cursor: pointer; }
+.message.audio-message { padding: 10px !important; min-width: 250px; display: flex; align-items: center; justify-content: center; }
+audio { height: 36px; width: 100%; outline: none; border-radius: 20px; }
+.message.file-type-message { padding: 15px; display: block; }
+.file-type-message.message.user a { color: white; }
+.file-type-message.message.other a { color: var(--text-main); }
 
-.chat-footer {
-  border-radius: 24px;
-  padding: 8px 15px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-}
-.btn-icon {
-  background: none;
-  border: none;
-  color: var(--text-sub);
-  font-size: 22px;
-  cursor: pointer;
-  padding: 8px;
-}
-.btn-icon:hover {
-  color: var(--text-main);
-}
-.input-box {
-  flex: 1;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 20px;
-  height: 42px;
-  display: flex;
-  align-items: center;
-  padding: 0 15px;
-}
-#message-input {
-  flex: 1;
-  background: transparent;
-  border: none;
-  color: var(--text-main);
-  font-size: 15px;
-}
-.btn-emoji {
-  background: none;
-  border: none;
-  color: #fbbf24;
-  font-size: 20px;
-  cursor: pointer;
-}
-.btn-send {
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  border: none;
-  background: var(--primary);
-  color: white;
-  cursor: pointer;
-}
-
-/* VOICE */
-.btn-icon.recording {
-  color: #ef4444 !important;
-  animation: pulse 1.5s infinite;
-  background: rgba(239, 68, 68, 0.1);
-  border-radius: 50%;
-}
-@keyframes pulse {
-  0% {
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
-  }
-  70% {
-    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
-  }
-}
-.audio-message {
-  padding: 10px !important;
-  min-width: 250px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-audio {
-  height: 36px;
-  border-radius: 20px;
-  width: 100%;
-  outline: none;
-}
-
-/* UTILS & MODALS (Giữ nguyên) */
-.custom-scroll::-webkit-scrollbar {
-  width: 6px;
-}
-.custom-scroll::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 10px;
-}
-.hidden {
-  display: none !important;
-}
-.emoji-picker {
-  position: absolute;
-  bottom: 80px;
-  right: 20px;
-  background: #1e293b;
-  border-radius: 16px;
-  padding: 15px;
-  width: 280px;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-.emoji-grid {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 5px;
-  font-size: 22px;
-  cursor: pointer;
-}
-
-/* Các phần Modal/Call Overlay giữ nguyên như file trước */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.8);
-  z-index: 2000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.modal-box {
-  padding: 30px;
-  border-radius: 16px;
-  width: 400px;
-  color: white;
-  background: var(--glass-bg);
-  text-align: center;
-  border: 1px solid var(--glass-border);
-  backdrop-filter: blur(16px);
-}
-.modal-box input {
-  width: 100%;
-  padding: 10px;
-  margin: 15px 0;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(0, 0, 0, 0.3);
-  color: white;
-}
-.modal-box button {
-  width: 100%;
-  padding: 10px;
-  border-radius: 8px;
-  border: none;
-  background: var(--primary);
-  color: white;
-  cursor: pointer;
-}
-.close-modal {
-  margin-top: 10px;
-  color: #aaa;
-  cursor: pointer;
-  font-size: 13px;
-  text-decoration: underline;
-}
-.call-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: #000;
-  z-index: 3000;
-  display: flex;
-  flex-direction: column;
-}
-.video-container {
-  flex: 1;
-  position: relative;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-#remoteVideo {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-#localVideo {
-  position: absolute;
-  bottom: 20px;
-  right: 20px;
-  width: 160px;
-  height: 210px;
-  background: #333;
-  border-radius: 10px;
-  border: 2px solid white;
-  object-fit: cover;
-}
-.call-actions {
-  height: 80px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 20px;
-  background: rgba(0, 0, 0, 0.8);
-}
-.call-btn {
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
-  border: none;
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-  font-size: 20px;
-  cursor: pointer;
-}
-.call-btn.hangup {
-  background: #ef4444;
-}
-/* --- INCOMING CALL SCREEN --- */
-.incoming-call-card {
-    background: rgba(30, 41, 59, 0.9);
-    backdrop-filter: blur(20px);
-    padding: 40px;
-    border-radius: 30px;
-    text-align: center;
-    border: 1px solid rgba(255,255,255,0.1);
-    box-shadow: 0 20px 50px rgba(0,0,0,0.5);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-.caller-avatar-anim {
-    position: relative;
-    width: 100px;
-    height: 100px;
-    margin-bottom: 20px;
-}
-
-.caller-avatar-anim img {
-    width: 100%; height: 100%;
-    border-radius: 50%;
-    object-fit: cover;
-    position: relative;
-    z-index: 2;
-    border: 3px solid #fff;
-}
-
-/* Hiệu ứng sóng lan tỏa */
-.ripple {
-    position: absolute;
-    top: 0; left: 0; width: 100%; height: 100%;
-    border-radius: 50%;
-    border: 2px solid rgba(255, 255, 255, 0.5);
-    animation: rippleAnim 1.5s infinite linear;
-    z-index: 1;
-}
-
-@keyframes rippleAnim {
-    0% { transform: scale(1); opacity: 1; }
-    100% { transform: scale(2.5); opacity: 0; }
-}
-
-.incoming-actions {
-    display: flex; gap: 40px; margin-top: 30px;
-}
-
-.btn-reject, .btn-accept {
-    width: 60px; height: 60px;
-    border-radius: 50%; border: none;
-    font-size: 24px; color: white; cursor: pointer;
-    transition: transform 0.2s;
-    display: flex; align-items: center; justify-content: center;
-}
-.btn-reject { background: #ef4444; }
-.btn-accept { background: #22c55e; animation: bounce 1s infinite; }
-
-.btn-reject:hover, .btn-accept:hover { transform: scale(1.1); }
-
-/* Tin nhắn hệ thống (Cuộc gọi nhỡ) */
+/* SYSTEM MESSAGE (Cuộc gọi nhỡ) */
 .message.system {
     align-self: center;
-    background: rgba(255,255,255,0.1);
-    border: 1px solid rgba(255,255,255,0.2);
-    font-size: 12px;
-    color: #cbd5e1;
-    padding: 5px 15px;
-    border-radius: 20px;
-    max-width: 100%;
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+    font-size: 12px; font-style: italic; color: #cbd5e1;
+    padding: 5px 15px; border-radius: 20px; max-width: 100%;
 }
+
+/* FOOTER */
+.chat-footer-wrapper { padding: 20px; z-index: 10; position: relative; flex-shrink: 0; }
+.chat-footer { border-radius: 24px; padding: 8px 15px; display: flex; align-items: center; gap: 12px; background: var(--glass-bg); border: 1px solid var(--glass-border); }
+.btn-icon { background: none; border: none; color: var(--text-sub); font-size: 22px; cursor: pointer; padding: 8px; }
+.input-box { flex: 1; background: rgba(255, 255, 255, 0.05); border-radius: 20px; height: 42px; display: flex; align-items: center; padding: 0 15px; }
+#message-input { flex: 1; background: transparent; border: none; color: var(--text-main); font-size: 15px; }
+.btn-emoji { background: none; border: none; color: #fbbf24; font-size: 20px; cursor: pointer; }
+.btn-send { width: 42px; height: 42px; border-radius: 50%; border: none; background: var(--primary-color); color: white; cursor: pointer; }
+
+/* VOICE ANIMATION */
+.btn-icon.recording { color: #ef4444 !important; animation: pulse 1.5s infinite; background: rgba(239, 68, 68, 0.1); border-radius: 50%; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
+
+/* UTILS */
+.custom-scroll::-webkit-scrollbar { width: 6px; }
+.custom-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 10px; }
+.hidden { display: none !important; }
+
+/* EMOJI */
+.emoji-picker { position: absolute; bottom: 80px; right: 20px; background: #1e293b; border-radius: 16px; padding: 15px; width: 280px; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5); border: 1px solid rgba(255, 255, 255, 0.1); }
+.emoji-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; font-size: 22px; cursor: pointer; }
+
+/* MODALS */
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); z-index: 2000; display: flex; align-items: center; justify-content: center; }
+.modal-box { padding: 30px; border-radius: 16px; width: 400px; color: white; background: var(--glass-bg); text-align: center; border: 1px solid var(--glass-border); backdrop-filter: blur(16px); }
+.modal-box input { width: 100%; padding: 10px; margin: 15px 0; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(0, 0, 0, 0.3); color: white; }
+.modal-box button { width: 100%; padding: 10px; border-radius: 8px; border: none; background: var(--primary-color); color: white; cursor: pointer; transition: 0.2s; }
+.modal-box button:hover { opacity: 0.9; }
+.close-modal { margin-top: 10px; color: #aaa; cursor: pointer; font-size: 13px; text-decoration: underline; }
+
+/* FILE UPLOAD ZONE */
+#file-modal .upload-zone { padding: 30px; border: 2px dashed rgba(255, 255, 255, 0.2); border-radius: 10px; margin: 15px 0; cursor: pointer; transition: 0.2s; }
+#file-modal .upload-zone:hover { border-color: var(--primary-color); }
+#file-modal .upload-zone i { font-size: 32px; color: var(--text-sub); }
+#selected-files-list { max-height: 150px; overflow-y: auto; margin-bottom: 15px; padding: 0 10px; }
+#selected-files-list .file-list-item { font-size: 14px; text-align: left; padding: 8px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+
+/* VIDEO CALL OVERLAY */
+.call-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 3000; display: flex; flex-direction: column; }
+.video-container { flex: 1; position: relative; display: flex; justify-content: center; align-items: center; }
+#remoteVideo { width: 100%; height: 100%; object-fit: cover; }
+#localVideo { position: absolute; bottom: 20px; right: 20px; width: 160px; height: 210px; background: #333; border-radius: 10px; border: 2px solid white; object-fit: cover; }
+.call-actions { height: 80px; display: flex; justify-content: center; align-items: center; gap: 20px; background: rgba(0, 0, 0, 0.8); }
+.call-btn { width: 50px; height: 50px; border-radius: 50%; border: none; background: rgba(255, 255, 255, 0.2); color: white; font-size: 20px; cursor: pointer; transition: 0.2s; }
+.call-btn:hover { opacity: 0.8; }
+.call-btn.hangup { background: #ef4444; }
+
+/* INCOMING CALL MODAL */
+.incoming-call-card { background: rgba(30, 41, 59, 0.95); backdrop-filter: blur(20px); padding: 40px; border-radius: 30px; text-align: center; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 20px 50px rgba(0,0,0,0.5); display: flex; flex-direction: column; align-items: center; animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+.caller-avatar-anim { position: relative; width: 100px; height: 100px; margin-bottom: 20px; }
+.caller-avatar-anim img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; position: relative; z-index: 2; border: 3px solid #fff; }
+.ripple { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.5); animation: rippleAnim 1.5s infinite linear; z-index: 1; }
+@keyframes rippleAnim { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(2.5); opacity: 0; } }
+@keyframes popIn { from { opacity: 0; transform: scale(0.5); } to { opacity: 1; transform: scale(1); } }
+.incoming-actions { display: flex; gap: 40px; margin-top: 30px; }
+.btn-reject, .btn-accept { width: 60px; height: 60px; border-radius: 50%; border: none; font-size: 24px; color: white; cursor: pointer; transition: transform 0.2s; display: flex; align-items: center; justify-content: center; }
+.btn-reject { background: #ef4444; }
+.btn-accept { background: #22c55e; animation: bounce 1s infinite; }
+.btn-reject:hover, .btn-accept:hover { transform: scale(1.1); }
+
+/* AI AVATAR */
+.ai-icon-wrapper { width: 100%; height: 100%; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: #1e293b; border: 2px solid #6366f1; box-shadow: 0 0 10px rgba(99, 102, 241, 0.5); }
+.ai-avatar-icon { font-size: 24px; color: white; }
