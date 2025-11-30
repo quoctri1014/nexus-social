@@ -1,6 +1,5 @@
 /**
- * public/file-handler.js - PHIÊN BẢN HOÀN CHỈNH
- * Xử lý chọn file, upload lên server và gửi tin nhắn socket
+ * public/file-handler.js - PHIÊN BẢN HOÀN CHỈNH (Upload File & Realtime Message)
  */
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -17,6 +16,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // 1. Hàm mở Modal (Được gọi từ main.js)
   window.openFileModal = () => {
+    if (!window.currentChatContext.id)
+      return alert("Vui lòng chọn người để gửi file.");
     fileModal.classList.remove("hidden");
     filesToSend = []; // Reset list
     fileInput.value = "";
@@ -30,20 +31,24 @@ document.addEventListener("DOMContentLoaded", () => {
       selectedFilesList.innerHTML =
         '<p style="color:#888; text-align:center;">Chưa chọn file nào.</p>';
       sendFileButton.disabled = true;
+      sendFileButton.textContent = "Gửi ngay";
       return;
     }
 
     filesToSend.forEach((file) => {
       const div = document.createElement("div");
       div.className = "file-list-item";
-      div.style.padding = "5px";
-      div.style.borderBottom = "1px solid #eee";
+      // Chỉnh style để dễ nhìn trong modal box
+      div.style.padding = "8px";
+      div.style.borderBottom = "1px solid rgba(255,255,255,0.1)";
+      div.style.textAlign = "left";
       div.textContent = `${file.name} (${(file.size / 1024 / 1024).toFixed(
         2
       )} MB)`;
       selectedFilesList.appendChild(div);
     });
     sendFileButton.disabled = false;
+    sendFileButton.textContent = `Gửi (${filesToSend.length} file)`;
   };
 
   // 3. Sự kiện chọn file từ máy
@@ -104,10 +109,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Thành công -> Đóng Modal
       fileModal.classList.add("hidden");
+      alert(`Đã gửi thành công ${uploadedFiles.length} file!`);
     } catch (error) {
-      alert("Lỗi: " + error.message);
+      alert("Lỗi Gửi File: " + error.message);
     } finally {
-      sendFileButton.textContent = "Gửi File";
+      sendFileButton.textContent = "Gửi ngay";
       sendFileButton.disabled = false;
     }
   });
