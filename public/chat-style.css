@@ -305,7 +305,7 @@ body {
   z-index: 0;
 }
 #messages {
-  flex: 1;
+  flex: 1; /* Chiếm hết không gian còn lại để cuộn */
   overflow-y: auto;
   padding: 20px 30px;
   display: flex;
@@ -343,11 +343,61 @@ body {
   text-align: right;
 }
 
+/* --- MEDIA MESSAGE STYLES --- */
+.message.image-message {
+  padding: 8px;
+}
+.message.image-message .msg-image {
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  object-fit: contain;
+}
+.message.image-message .msg-image:hover {
+  opacity: 0.9;
+}
+.message.audio-message {
+  padding: 10px !important;
+  min-width: 250px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+audio {
+  height: 36px;
+  outline: none;
+  border-radius: 20px;
+  width: 100%;
+}
+.message.other audio {
+  filter: invert(0.9);
+}
+.message.user audio {
+  filter: brightness(2);
+}
+.message.file-type-message {
+  /* Style chung cho tin nhắn file/audio/image */
+  padding: 15px;
+  display: block; /* Đảm bảo nội dung file nằm trên 1 khối */
+}
+.file-type-message.message.user a {
+  color: white; /* Link tải xuống màu trắng trong tin nhắn của mình */
+}
+.file-type-message.message.other a {
+  color: var(--text-main); /* Link tải xuống rõ ràng trong tin nhắn của người khác */
+}
+/* --- END MEDIA MESSAGE STYLES --- */
+
+
 /* FOOTER */
 .chat-footer-wrapper {
   padding: 20px;
   z-index: 10;
   position: relative;
+  /* Đảm bảo Footer luôn nằm dưới cùng */
+  flex-shrink: 0; 
 }
 .chat-footer {
   border-radius: 24px;
@@ -419,24 +469,6 @@ body {
     box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
   }
 }
-.audio-message {
-  padding: 10px !important;
-  min-width: 250px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-audio {
-  height: 36px;
-  outline: none;
-  border-radius: 20px;
-}
-.message.other audio {
-  filter: invert(0.9);
-}
-.message.user audio {
-  filter: brightness(2);
-}
 
 /* UTILS */
 .custom-scroll::-webkit-scrollbar {
@@ -467,7 +499,10 @@ audio {
   font-size: 22px;
   cursor: pointer;
 }
-/* Modal & Video Overlay: Giữ nguyên từ bản trước */
+
+/* ================= 3. MODALS (TẠO MỚI/HOÀN CHỈNH) ================= */
+
+/* Modal Base */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -485,9 +520,10 @@ audio {
   border-radius: 16px;
   width: 400px;
   color: white;
-  background: #1e293b;
+  background: var(--glass-bg); /* Dùng biến glass-bg cho modal box */
   text-align: center;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(16px);
 }
 .modal-box input {
   width: 100%;
@@ -506,6 +542,10 @@ audio {
   background: var(--primary-color);
   color: white;
   cursor: pointer;
+  transition: 0.2s;
+}
+.modal-box button:hover {
+    opacity: 0.9;
 }
 .close-modal {
   margin-top: 10px;
@@ -514,6 +554,38 @@ audio {
   font-size: 13px;
   text-decoration: underline;
 }
+
+/* File Modal Specific Styles */
+#file-modal .upload-zone {
+    padding: 30px;
+    border: 2px dashed rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+    margin: 15px 0;
+    cursor: pointer;
+    transition: 0.2s;
+}
+#file-modal .upload-zone:hover {
+    border-color: var(--primary-color);
+}
+#file-modal .upload-zone i {
+    font-size: 32px;
+    color: var(--text-sub);
+}
+#selected-files-list {
+    max-height: 150px;
+    overflow-y: auto;
+    margin-bottom: 15px;
+    padding: 0 10px;
+}
+#selected-files-list .file-list-item {
+    font-size: 14px;
+    text-align: left;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* ================= 4. VIDEO CALL OVERLAY ================= */
+
 .call-overlay {
   position: fixed;
   top: 0;
@@ -565,23 +637,16 @@ audio {
   color: white;
   font-size: 20px;
   cursor: pointer;
+  transition: 0.2s;
+}
+.call-btn:hover {
+    opacity: 0.8;
 }
 .call-btn.hangup {
   background: #ef4444;
 }
-/* Hiệu ứng riêng cho Avatar AI */
-img[src*="flaticon"],
-img[src*="robot"] {
-  background: white; /* Nền trắng để robot nổi bật trên nền tối */
-  padding: 2px;
-  box-shadow: 0 0 10px rgba(99, 102, 241, 0.5); /* Phát sáng màu tím xanh */
-  transition: transform 0.3s;
-}
 
-img[src*="flaticon"]:hover {
-  transform: rotate(10deg) scale(1.1);
-}
-/* Thêm vào chat-style.css nếu chưa có hoặc muốn chỉnh thêm */
+/* ================= 5. AI AVATAR (HOÀN CHỈNH) ================= */
 
 /* Đảm bảo avatar luôn tròn và không bị méo */
 .user-avatar img,
@@ -589,11 +654,9 @@ img[src*="flaticon"]:hover {
 #nav-avatar,
 .avatar-circle img {
   border-radius: 50%;
-  object-fit: cover; /* Quan trọng: cắt ảnh vừa khung tròn */
-  background-color: #e2e8f0; /* Màu nền nhẹ khi ảnh đang load */
+  object-fit: cover; 
+  background-color: #e2e8f0; 
 }
-
-/* --- STYLE RIÊNG CHO AI ROBOT ICON --- */
 
 /* Wrapper chung cho Icon (sidebar & header) */
 .ai-icon-wrapper {
@@ -603,15 +666,15 @@ img[src*="flaticon"]:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #1e293b; /* Nền màu tối */
-  border: 2px solid #6366f1; /* Viền tím */
-  box-shadow: 0 0 10px rgba(99, 102, 241, 0.5); /* Phát sáng */
+  background: #1e293b; 
+  border: 2px solid #6366f1; 
+  box-shadow: 0 0 10px rgba(99, 102, 241, 0.5); 
 }
 
 /* Icon chính (Robot) */
 .ai-avatar-icon {
-  font-size: 24px; /* Kích thước icon */
-  color: white; /* Màu icon */
+  font-size: 24px; 
+  color: white; 
 }
 
 /* Cần đảm bảo Avatar Header/Sidebar không có padding/margin thừa */
