@@ -29,7 +29,7 @@ if (GEMINI_API_KEY) {
   try {
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
     // Sử dụng model Flash cho tốc độ phản hồi nhanh
-    aiModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    aiModel = genAI.getGenerativeModel({ model: "gemini-pro" });
     console.log("✅ AI Model initialized (Gemini 1.5 Flash)");
   } catch (err) {
     console.error("⚠️ Lỗi khởi tạo AI:", err.message);
