@@ -4,20 +4,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const token = localStorage.getItem("token");
   if (!token) { window.location.href = "/index.html"; return; }
 
-  // 1. DARK MODE
-  const themeToggle = document.getElementById("theme-toggle");
-  const currentTheme = localStorage.getItem("theme") || "dark";
-  document.body.setAttribute("data-theme", currentTheme);
-  
-  if(themeToggle) {
-      themeToggle.addEventListener("click", () => {
-          const newTheme = document.body.getAttribute("data-theme") === "dark" ? "light" : "dark";
-          document.body.setAttribute("data-theme", newTheme);
-          localStorage.setItem("theme", newTheme);
-      });
-  }
-
-  // 2. INIT
+  // 1. INIT & VARS
   window.socket = io({ auth: { token } });
   window.myUserId = null;
   window.myUsername = null;
@@ -29,21 +16,25 @@ document.addEventListener("DOMContentLoaded", () => {
   const userListDiv = document.getElementById("user-list");
   const headerAvatarContainer = document.querySelector(".chat-header .avatar-circle");
   const chatContent = document.getElementById("chat-content-container");
-
-  // Mobile
-  const mobileBack = document.getElementById("mobile-back-btn");
-  if(mobileBack) mobileBack.addEventListener("click", () => {
-      chatContainer.classList.remove("mobile-active");
-      window.currentChatContext = { id: null };
+  
+  // Dark Mode
+  const themeToggle = document.getElementById("theme-toggle");
+  const currentTheme = localStorage.getItem("theme") || "dark";
+  document.body.setAttribute("data-theme", currentTheme);
+  if(themeToggle) themeToggle.addEventListener("click", () => {
+      const newTheme = document.body.getAttribute("data-theme") === "dark" ? "light" : "dark";
+      document.body.setAttribute("data-theme", newTheme);
+      localStorage.setItem("theme", newTheme);
   });
 
-  // BG
+  // Load BG
   const savedBg = localStorage.getItem("chatBg");
   if (savedBg && chatContent) {
-      if(savedBg.startsWith('http')) chatContent.style.backgroundImage = `url('${savedBg}')`;
+      if(savedBg.startsWith('http') || savedBg.startsWith('url')) chatContent.style.backgroundImage = savedBg.startsWith('url') ? savedBg : `url('${savedBg}')`;
       else { chatContent.style.backgroundImage = "none"; chatContent.style.background = savedBg; }
   }
 
+  // Get Me
   fetch("/api/me", { headers: { Authorization: `Bearer ${token}` } })
     .then((r) => r.json())
     .then((u) => {
@@ -62,7 +53,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function scrollToBottom() { if(messagesContainer) messagesContainer.scrollTop = messagesContainer.scrollHeight; }
 
-  // 3. USER LIST
+  // 2. RENDER USER LIST
   window.socket.on("userList", (users) => {
     if(!userListDiv) return;
     userListDiv.innerHTML = "";
@@ -73,7 +64,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const div = document.createElement("div");
       div.className = `user-item ${isActive ? "active" : ""}`;
       const avt = getAvatar(u);
-      const imgHtml = avt.startsWith("<i") ? `<div class="user-avatar ai-icon-wrapper">${avt}</div>` : `<div class="user-avatar"><img src="${avt}" onerror="this.src='https://ui-avatars.com/api/?name=U'"></div>`;
+      const imgHtml = avt.startsWith("<i") ? `<div class="user-avatar ai-icon-wrapper">${avt}</div>` : `<div class="user-avatar"><img src="${avt}"></div>`;
       div.innerHTML = `${imgHtml}<div class="user-info"><div class="user-name">${u.nickname || u.username}</div><div class="user-preview">${u.userId===0?"Trợ lý ảo":(u.online?"Online":"Offline")}</div></div>`;
       div.onclick = () => selectChat(u);
       userListDiv.appendChild(div);
@@ -82,23 +73,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function selectChat(user) {
     window.currentChatContext = { id: user.userId, name: user.nickname || user.username, type: "user" };
-    const title = document.getElementById("chat-header-title");
-    const status = document.getElementById("chat-status");
-    if(title) title.textContent = window.currentChatContext.name;
-    if(status) status.textContent = user.userId === 0 ? "Trợ lý AI" : (user.online ? "Đang hoạt động" : "Ngoại tuyến");
+    document.getElementById("chat-header-title").textContent = window.currentChatContext.name;
+    document.getElementById("chat-status").textContent = user.userId === 0 ? "Trợ lý AI" : (user.online ? "Đang hoạt động" : "Ngoại tuyến");
     
     if(headerAvatarContainer) {
         headerAvatarContainer.innerHTML = "";
         const avt = getAvatar(user);
         if(avt.startsWith("<i")) { headerAvatarContainer.className="avatar-circle ai-icon-wrapper"; headerAvatarContainer.innerHTML = avt; }
-        else { headerAvatarContainer.className="avatar-circle"; headerAvatarContainer.innerHTML = `<img src="${avt}" onerror="this.src='https://ui-avatars.com/api/?name=C'">`; }
+        else { headerAvatarContainer.className="avatar-circle"; headerAvatarContainer.innerHTML = `<img src="${avt}">`; }
     }
 
-    if(messagesContainer) messagesContainer.innerHTML = "";
-    if(messageInput) messageInput.disabled = false;
-    const sendBtn = document.getElementById("send-btn");
-    if(sendBtn) sendBtn.disabled = false;
-    
+    messagesContainer.innerHTML = "";
+    messageInput.disabled = false;
+    document.getElementById("send-btn").disabled = false;
     if(chatContainer) chatContainer.classList.add("mobile-active");
 
     window.socket.emit("loadPrivateHistory", { recipientId: user.userId });
@@ -108,7 +95,7 @@ document.addEventListener("DOMContentLoaded", () => {
     window.dispatchEvent(new Event("contextChanged"));
   }
 
-  // 4. MESSAGES
+  // 3. MESSAGE HANDLING
   window.socket.on("privateHistory", ({ messages }) => {
     if(!messagesContainer) return;
     messagesContainer.innerHTML = "";
@@ -154,6 +141,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if(shouldScroll) scrollToBottom();
   };
 
+  // 4. SEND MESSAGE (ĐÃ FIX)
   const chatForm = document.getElementById("chat-form");
   if(chatForm) {
       chatForm.addEventListener("submit", (e) => {
@@ -165,12 +153,11 @@ document.addEventListener("DOMContentLoaded", () => {
       });
   }
 
-  // 5. EMOJI MANUAL (FIX ERROR)
+  // 5. EMOJI (MANUAL)
   const emojiBtn = document.getElementById("emoji-trigger");
   const emojiPicker = document.getElementById("emoji-picker");
   if(emojiBtn && emojiPicker) {
       emojiBtn.addEventListener("click", (e) => { e.stopPropagation(); emojiPicker.classList.toggle("hidden"); });
-      // Lắng nghe click trên các span emoji
       document.querySelectorAll(".emoji-grid span").forEach(s => {
           s.addEventListener("click", () => {
               if(messageInput) { messageInput.value += s.innerText; messageInput.focus(); }
@@ -197,7 +184,7 @@ document.addEventListener("DOMContentLoaded", () => {
                       const formData = new FormData();
                       formData.append("files", blob, `voice_${Date.now()}.webm`);
                       voiceBtn.classList.remove("recording");
-                      if(messageInput) messageInput.placeholder = "Đang gửi...";
+                      messageInput.placeholder = "Đang gửi...";
                       
                       const res = await fetch("/api/upload", {method:"POST", headers:{"Authorization":`Bearer ${token}`}, body:formData});
                       const files = await res.json();
@@ -206,12 +193,12 @@ document.addEventListener("DOMContentLoaded", () => {
                           window.socket.emit("privateMessage", {recipientId: window.currentChatContext.id, content});
                       }
                       stream.getTracks().forEach(t=>t.stop());
-                      if(messageInput) messageInput.placeholder = "Nhập tin nhắn...";
+                      messageInput.placeholder = "Nhập tin nhắn...";
                   };
                   mediaRecorder.start();
                   isRecording=true;
                   voiceBtn.classList.add("recording");
-                  if(messageInput) messageInput.placeholder = "Đang ghi âm...";
+                  messageInput.placeholder = "Đang ghi âm...";
               } catch(e) { alert("Lỗi Mic: "+e.message); }
           } else {
               mediaRecorder.stop();
@@ -220,7 +207,13 @@ document.addEventListener("DOMContentLoaded", () => {
       });
   }
 
-  // 7. MODALS & GROUPS
+  // 7. GROUP & UTILS
+  const mobileBack = document.getElementById("mobile-back-btn");
+  if(mobileBack) mobileBack.addEventListener("click", () => {
+      chatContainer.classList.remove("mobile-active");
+      window.currentChatContext = { id: null };
+  });
+
   const groupModal = document.getElementById("group-modal");
   const membersListDiv = document.getElementById("group-members-list");
   const createGroupBtn = document.getElementById("create-group-btn");
@@ -263,7 +256,6 @@ document.addEventListener("DOMContentLoaded", () => {
       });
   }
 
-  // BG Modal
   window.changeBg = function(val) {
       chatContent.style.backgroundImage = "none"; chatContent.style.background = val;
       localStorage.setItem("chatBg", val); document.getElementById("bg-modal").classList.add("hidden");
