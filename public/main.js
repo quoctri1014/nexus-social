@@ -1,388 +1,164 @@
 document.addEventListener("DOMContentLoaded", () => {
-  // 1. KIỂM TRA MÔI TRƯỜNG & AUTH
   if (!window.location.pathname.endsWith("chat.html")) return;
-
   const token = localStorage.getItem("token");
-  if (!token) {
-    window.location.href = "/index.html";
-    return;
-  }
+  if (!token) { window.location.href = "/index.html"; return; }
 
-  // 2. KHỞI TẠO BIẾN TOÀN CỤC
-  window.socket = io({
-    auth: {
-      token,
-    },
-  });
+  window.socket = io({ auth: { token } });
   window.myUserId = null;
   window.myUsername = null;
-  window.currentChatContext = {
-    id: null,
-    name: null,
-    type: "user",
-  };
+  window.currentChatContext = { id: null, name: null, type: "user" };
   let isSecretMode = false;
-  // ID CỦA AI TRONG DATABASE LÀ 1 (Dựa trên SQL Dump)
   const AI_BOT_ID = 1;
 
-  // 3. DOM ELEMENTS
+  // DOM
   const chatContainer = document.getElementById("main-container");
   const messagesContainer = document.getElementById("messages");
   const messageInput = document.getElementById("message-input");
-  const chatForm = document.getElementById("chat-form");
-  const userListDiv = document.getElementById("user-list");
-  const chatContentContainer = document.getElementById("chat-content-container");
-  const headerAvatarContainer = document.querySelector(".chat-header .avatar-circle");
-
-  // Nút chức năng
   const sendBtn = document.getElementById("send-btn");
   const heartBtn = document.getElementById("heart-btn");
   const secretBtn = document.getElementById("secret-mode-btn");
   const voiceBtn = document.getElementById("voice-btn");
-  const attachBtn = document.getElementById("attach-btn");
-  const deleteChatBtn = document.getElementById("delete-chat-btn");
-  const mobileBack = document.getElementById("mobile-back-btn");
+  const userListDiv = document.getElementById("user-list");
+  const chatContentContainer = document.getElementById("chat-content-container");
+  const headerAvatarContainer = document.querySelector(".chat-header .avatar-circle");
 
-  // Modals & Settings
-  const groupModal = document.getElementById("group-modal");
-  const membersListDiv = document.getElementById("group-members-list");
-  const createGroupBtn = document.getElementById("create-group-btn");
-  const closeGroupBtn = document.getElementById("close-group-modal");
-  const confirmGroupBtn = document.getElementById("confirm-create-group");
-
-  const settingsBtn = document.getElementById("chat-settings-btn");
-  const closeBgBtn = document.getElementById("close-bg-modal");
-  const saveBgBtn = document.getElementById("save-bg-btn");
-  const themeToggle = document.getElementById("theme-toggle");
-
-  // 4. CÀI ĐẶT GIAO DIỆN (THEME & BACKGROUND)
-  const currentTheme = localStorage.getItem("theme") || "dark";
-  document.body.setAttribute("data-theme", currentTheme);
-  if (themeToggle) {
-    themeToggle.addEventListener("click", () => {
-      const newTheme = document.body.getAttribute("data-theme") === "dark" ? "light" : "dark";
-      document.body.setAttribute("data-theme", newTheme);
-      localStorage.setItem("theme", newTheme);
-    });
-  }
-
+  // Load Theme & Bg
+  document.body.setAttribute("data-theme", localStorage.getItem("theme") || "dark");
   const savedBg = localStorage.getItem("chatBg");
   if (savedBg && chatContentContainer) {
-    if (savedBg.startsWith("http") || savedBg.startsWith("url")) {
-      chatContentContainer.style.backgroundImage = savedBg.startsWith("url") ? savedBg : `url('${savedBg}')`;
-    } else {
-      chatContentContainer.style.backgroundImage = "none";
-      chatContentContainer.style.background = savedBg;
-    }
+    if (savedBg.startsWith("http") || savedBg.startsWith("url")) chatContentContainer.style.backgroundImage = savedBg.startsWith("url") ? savedBg : `url('${savedBg}')`;
+    else { chatContentContainer.style.backgroundImage = "none"; chatContentContainer.style.background = savedBg; }
   }
 
-  // Helper: Xử lý hiển thị Avatar AI và User
+  // Get Me
+  fetch("/api/me", { headers: { Authorization: `Bearer ${token}` } }).then(r=>r.json()).then(u=>{
+    window.myUserId = u.id; window.myUsername = u.username;
+    const navAvt = document.getElementById("nav-avatar");
+    if(navAvt) navAvt.src = u.avatar && !u.avatar.includes("avatar1.png") ? (u.avatar.startsWith("http")?u.avatar:`/uploads/${u.avatar}`) : `https://ui-avatars.com/api/?name=${u.nickname||u.username}`;
+  });
+
+  // Avatar Helper
   function getAvatarHtml(u) {
-    // Nếu là AI
-    if (u.id === AI_BOT_ID || u.username === "Trợ lý AI") {
-      // Trả về cả wrapper để CSS áp dụng flex-center
-      return `<div class="ai-icon-wrapper"><i class="fas fa-robot ai-avatar-icon"></i></div>`;
-    }
-    
-    // Nếu là User có avatar ảnh
-    if (u.avatar && u.avatar.trim() !== "" && !u.avatar.includes("avatar1.png")) {
-      const src = u.avatar.startsWith("http") || u.avatar.startsWith("data:") ? u.avatar : `/uploads/${u.avatar}`;
+    if (u.id === AI_BOT_ID || u.username === "Trợ lý AI") return `<div class="ai-icon-wrapper"><i class="fas fa-robot ai-avatar-icon"></i></div>`;
+    if (u.avatar && !u.avatar.includes("avatar1.png")) {
+      const src = u.avatar.startsWith("http") ? u.avatar : `/uploads/${u.avatar}`;
       return `<img src="${src}" onerror="this.src='https://ui-avatars.com/api/?name=U'">`;
     }
-    
-    // Avatar mặc định tạo từ tên
-    const n = u.nickname || u.username || "User";
-    return `<img src="https://ui-avatars.com/api/?name=${encodeURIComponent(n)}&background=random&color=fff&size=128&bold=true">`;
+    return `<img src="https://ui-avatars.com/api/?name=${encodeURIComponent(u.nickname||u.username)}&background=random&color=fff">`;
   }
 
-  // 5. LẤY THÔNG TIN BẢN THÂN (ME)
-  fetch("/api/me", {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-    .then((r) => r.json())
-    .then((u) => {
-      window.myUserId = u.id;
-      window.myUsername = u.username;
-      const navAvt = document.getElementById("nav-avatar");
-      if (navAvt) {
-         // Nav avatar chỉ là thẻ img, nếu là AI (hiếm khi) thì ko load đc icon font
-         const n = u.nickname || u.username;
-         navAvt.src = u.avatar && !u.avatar.includes("avatar1.png") ? (u.avatar.startsWith("http")?u.avatar:`/uploads/${u.avatar}`) : `https://ui-avatars.com/api/?name=${encodeURIComponent(n)}`;
-      }
-    });
-
-  function scrollToBottom() {
-    if (messagesContainer) messagesContainer.scrollTop = messagesContainer.scrollHeight;
-  }
-
-  // 6. RENDER USER LIST (Sửa logic hiển thị avatar AI)
+  // Socket: User List
   window.socket.on("userList", (users) => {
     if (!userListDiv) return;
     userListDiv.innerHTML = "";
     window.allUsers = users; 
-    
     users.forEach((u) => {
       if (u.id === window.myUserId) return; 
-
-      const isActive = window.currentChatContext.id === u.id;
       const div = document.createElement("div");
-      div.className = `user-item ${isActive ? "active" : ""}`;
-
-      const avatarContent = getAvatarHtml(u);
-      // Bọc trong div .user-avatar để CSS flex-shrink hoạt động
-      const avatarBlock = `<div class="user-avatar">${avatarContent}</div>`;
-      
+      div.className = `user-item ${window.currentChatContext.id === u.id ? "active" : ""}`;
       const isAI = u.id === AI_BOT_ID;
-
-      div.innerHTML = `
-                ${avatarBlock}
-                <div class="user-info">
-                    <div class="user-name">${u.nickname || u.username}</div>
-                    <div class="user-preview">${isAI ? "Luôn sẵn sàng" : (u.online ? "Online" : "Offline")}</div>
-                </div>`;
-      
+      div.innerHTML = `<div class="user-avatar">${getAvatarHtml(u)}<div class="status-dot ${u.online?"online":""}"></div></div>
+        <div class="user-info"><div class="user-name">${u.nickname||u.username}</div><div class="user-preview">${isAI?"Luôn sẵn sàng":(u.online?"Online":"Offline")}</div></div>`;
       div.onclick = () => selectChat(u);
       userListDiv.appendChild(div);
     });
   });
 
- // 7. CHỌN CUỘC TRÒ CHUYỆN (SELECT CHAT) - UPDATE
+  // Select Chat
   function selectChat(user) {
     if (!user || (!user.id && user.id !== 0)) return;
-
-    window.currentChatContext = {
-      id: user.id,
-      name: user.nickname || user.username,
-      type: "user",
-    };
-
-    const title = document.getElementById("chat-header-title");
-    const status = document.getElementById("chat-status");
-    if (title) title.textContent = window.currentChatContext.name;
+    window.currentChatContext = { id: user.id, name: user.nickname || user.username, type: "user" };
     
+    document.getElementById("chat-header-title").textContent = window.currentChatContext.name;
     const isAI = user.id === AI_BOT_ID;
+    document.getElementById("chat-status").textContent = isAI ? "Trợ lý ảo" : (user.online ? "Đang hoạt động" : "Ngoại tuyến");
+    
+    if (headerAvatarContainer) { headerAvatarContainer.innerHTML = getAvatarHtml(user); headerAvatarContainer.className = "avatar-circle"; }
 
-    if (status)
-      status.textContent = isAI ? "Trợ lý ảo thông minh" : (user.online ? "Đang hoạt động" : "Ngoại tuyến");
-
-    // Update Header Avatar
-    if (headerAvatarContainer) {
-      headerAvatarContainer.innerHTML = "";
-      headerAvatarContainer.className = "avatar-circle"; 
-      headerAvatarContainer.innerHTML = getAvatarHtml(user);
-    }
-
-    // Reset UI
     if (messagesContainer) messagesContainer.innerHTML = "";
     if (messageInput) messageInput.disabled = false;
     if (sendBtn) sendBtn.disabled = false;
     if (chatContainer) chatContainer.classList.add("mobile-active");
 
-    // Load History
     window.socket.emit("loadPrivateHistory", { recipientId: user.id });
 
-    // --- SỬA PHẦN NÀY ĐỂ NÚT KHÔNG BỊ MẤT ---
-    // Hiển thị nút dưới dạng Flex để căn giữa icon đẹp hơn, thay vì block
-    const deleteChatBtn = document.getElementById("delete-chat-btn");
-    if (deleteChatBtn) deleteChatBtn.style.display = isAI ? "none" : "flex"; 
-    
+    // Show/Hide Buttons
+    const delBtn = document.getElementById("delete-chat-btn");
     const callBtn = document.getElementById("call-button");
-    const videoBtn = document.getElementById("video-call-button");
-    
-    // Nếu là AI thì ẩn, người thường thì hiện flex
-    if(callBtn) callBtn.style.display = isAI ? "none" : "flex";
-    if(videoBtn) videoBtn.style.display = isAI ? "none" : "flex";
-    // ----------------------------------------
+    const vidBtn = document.getElementById("video-call-button");
+    if(delBtn) delBtn.style.display = isAI ? "none" : "flex"; 
+    if(callBtn) callBtn.style.display = isAI ? "none" : "flex"; 
+    if(vidBtn) vidBtn.style.display = isAI ? "none" : "flex"; 
 
-    // Reset Secret Mode
     isSecretMode = false;
-    if (secretBtn) {
-      secretBtn.classList.remove("active-secret");
-      secretBtn.style.color = "";
-    }
-    if (messageInput) messageInput.placeholder = "Nhập tin nhắn...";
-    window.dispatchEvent(new Event("contextChanged"));
+    if(secretBtn) { secretBtn.classList.remove("active-secret"); secretBtn.style.color = ""; }
+    if(messageInput) messageInput.placeholder = "Nhập tin nhắn...";
   }
 
-  // 8. XỬ LÝ TIN NHẮN
+  // Message Handling
   window.socket.on("privateHistory", ({ messages }) => {
     if (!messagesContainer) return;
     messagesContainer.innerHTML = "";
     messages.forEach((m) => appendMessage(m, false));
-    scrollToBottom();
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
   });
 
   window.socket.on("newMessage", (msg) => {
     const isCurrent = msg.senderId === window.currentChatContext.id;
     const isMe = msg.senderId === window.myUserId;
     const isAI = msg.senderId === AI_BOT_ID && window.currentChatContext.id === AI_BOT_ID;
-
-    if (isCurrent || isMe || isAI) {
-      appendMessage(msg);
-    }
+    if (isCurrent || isMe || isAI) appendMessage(msg);
   });
 
   window.appendMessage = function (msg, shouldScroll = true) {
     if (document.getElementById(`msg-${msg.id}`)) return;
-
     const div = document.createElement("div");
     div.id = `msg-${msg.id || Date.now()}`;
-    const type = msg.senderId === window.myUserId ? "user" : "other";
-    div.className = `message ${type}`;
+    div.className = `message ${msg.senderId === window.myUserId ? "user" : "other"}`;
+    if (msg.ttl) div.classList.add("secret");
 
-    if (msg.ttl) {
-      div.classList.add("secret");
-      setTimeout(() => div.remove(), msg.ttl);
-    }
-
-    let deleteBtnHtml = "";
-    if (msg.senderId === window.myUserId) {
-      deleteBtnHtml = `<div class="delete-msg-btn" onclick="deleteMessage(${msg.id})"><i class="fas fa-trash"></i></div>`;
-    }
+    let delBtn = "";
+    if (msg.senderId === window.myUserId) delBtn = `<div class="delete-msg-btn" onclick="deleteMessage(${msg.id})"><i class="fas fa-trash"></i></div>`;
 
     let content = msg.content;
     try {
       const json = JSON.parse(msg.content);
-      if (json.type === "image") {
-        content = `<img src="${json.url}" class="msg-image" onclick="window.open('${json.url}')">`;
-        div.classList.add("image-message");
-      } else if (json.type === "audio") {
-        content = `<audio controls src="${json.url}"></audio>`;
-        div.classList.add("audio-message");
-      } else if (json.type === "file") {
-        content = `<div style="display:flex;align-items:center;gap:10px"><i class="fas fa-file"></i> <a href="${json.url}" download style="color:inherit">${json.name}</a></div>`;
-        div.classList.add("file-type-message");
-      } else if (json.type === "system") {
-        div.className = "message system";
-        content = `🔔 ${json.text}`;
-      }
+      if (json.type === "image") { content = `<img src="${json.url}" class="msg-image" onclick="window.open('${json.url}')">`; div.classList.add("image-message"); }
+      else if (json.type === "audio") { content = `<audio controls src="${json.url}"></audio>`; div.classList.add("audio-message"); }
     } catch (e) {}
 
-    const time = new Date(msg.createdAt || Date.now()).toLocaleTimeString("vi-VN", {
-      hour: "2-digit", minute: "2-digit",
-    });
-    div.innerHTML = `${content}<span class="timestamp">${time}</span>${deleteBtnHtml}`;
-
+    const time = new Date(msg.createdAt || Date.now()).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+    div.innerHTML = `${content}<span class="timestamp">${time}</span>${delBtn}`;
+    
     if (messagesContainer) messagesContainer.appendChild(div);
-    if (shouldScroll) scrollToBottom();
+    if (shouldScroll) messagesContainer.scrollTop = messagesContainer.scrollHeight;
   };
 
-  // 9. GỬI TIN NHẮN
-  if (chatForm) {
-    chatForm.addEventListener("submit", (e) => {
-      e.preventDefault();
-      const val = messageInput.value.trim();
-      if (!val || window.currentChatContext.id === null) return;
+  // Actions
+  const chatForm = document.getElementById("chat-form");
+  if(chatForm) chatForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const val = messageInput.value.trim();
+    if (!val || !window.currentChatContext.id) return;
+    const data = { recipientId: window.currentChatContext.id, content: val };
+    if (isSecretMode) data.ttl = 10000;
+    window.socket.emit("privateMessage", data);
+    messageInput.value = "";
+  });
 
-      const msgData = { recipientId: window.currentChatContext.id, content: val };
-      if (isSecretMode) msgData.ttl = 10000;
+  if (messageInput) messageInput.addEventListener("input", (e) => {
+    if (e.target.value.trim()) { sendBtn.classList.remove("hidden"); heartBtn.classList.add("hidden"); }
+    else { sendBtn.classList.add("hidden"); heartBtn.classList.remove("hidden"); }
+  });
 
-      window.socket.emit("privateMessage", msgData);
-      messageInput.value = "";
-      if (sendBtn) sendBtn.classList.add("hidden");
-      if (heartBtn) heartBtn.classList.remove("hidden");
-    });
-  }
-
-  // Toggle Button UI
-  if (messageInput) {
-    messageInput.addEventListener("input", (e) => {
-      if (e.target.value.trim()) {
-        if (sendBtn) sendBtn.classList.remove("hidden");
-        if (heartBtn) heartBtn.classList.add("hidden");
-      } else {
-        if (sendBtn) sendBtn.classList.add("hidden");
-        if (heartBtn) heartBtn.classList.remove("hidden");
-      }
-    });
-  }
-
-  // 10. TÍNH NĂNG KHÁC (VOICE CHAT FIX)
-  if (voiceBtn) {
-    let mediaRecorder, audioChunks = [], isRecording = false;
-    voiceBtn.addEventListener("click", async () => {
-      if (!window.currentChatContext.id) return alert("Chọn người chat trước!");
-      
-      if (!isRecording) {
-        // BẮT ĐẦU GHI
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          mediaRecorder = new MediaRecorder(stream);
-          audioChunks = [];
-          
-          mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
-          
-          mediaRecorder.onstop = async () => {
-            const blob = new Blob(audioChunks, { type: "audio/webm" });
-            const formData = new FormData();
-            // Đặt tên file
-            formData.append("files", blob, `voice_${Date.now()}.webm`);
-            
-            voiceBtn.classList.remove("recording");
-            messageInput.placeholder = "Đang gửi...";
-            
-            try {
-                // Upload file (Server tự xử lý Local hay Cloud)
-                const res = await fetch("/api/upload", {
-                    method: "POST",
-                    headers: { Authorization: `Bearer ${token}` },
-                    body: formData,
-                });
-                
-                if(!res.ok) throw new Error("Upload Failed");
-
-                const files = await res.json();
-                if (files.length) {
-                    const content = JSON.stringify({ type: "audio", url: files[0].url });
-                    window.socket.emit("privateMessage", { recipientId: window.currentChatContext.id, content });
-                }
-            } catch(err) {
-                alert("Lỗi gửi voice: " + err.message);
-                console.error(err);
-            }
-
-            stream.getTracks().forEach((t) => t.stop());
-            messageInput.placeholder = "Nhập tin nhắn...";
-          };
-          
-          mediaRecorder.start();
-          isRecording = true;
-          voiceBtn.classList.add("recording");
-          messageInput.placeholder = "Đang ghi âm (Bấm lần nữa để gửi)...";
-        } catch (e) { alert("Lỗi Micro: " + e.message); }
-      } else {
-        // DỪNG GHI VÀ GỬI
-        mediaRecorder.stop();
-        isRecording = false;
-      }
-    });
-  }
-
-  // CÁC TÍNH NĂNG PHỤ KHÁC (Secret, Heart, Delete...)
-  if (secretBtn) {
-    secretBtn.addEventListener("click", () => {
-      isSecretMode = !isSecretMode;
-      if (isSecretMode) {
-        secretBtn.classList.add("active-secret");
-        secretBtn.style.color = "#ef4444";
-        messageInput.placeholder = "Chế độ tự hủy (10s)...";
-      } else {
-        secretBtn.classList.remove("active-secret");
-        secretBtn.style.color = "";
-        messageInput.placeholder = "Nhập tin nhắn...";
-      }
-    });
-  }
-
-  if (heartBtn) {
-    heartBtn.addEventListener("click", () => {
-      if (!window.currentChatContext.id) return;
-      window.socket.emit("sendHeart", { recipientId: window.currentChatContext.id });
-      showHeartAnimation();
-    });
-  }
+  // Fix Heart Position
+  if(heartBtn) heartBtn.addEventListener("click", () => {
+    if (!window.currentChatContext.id) return;
+    window.socket.emit("sendHeart", { recipientId: window.currentChatContext.id });
+    showHeartAnimation();
+  });
   window.socket.on("heartAnimation", () => showHeartAnimation());
-
+  
   function showHeartAnimation() {
     const container = document.getElementById("floating-hearts-container");
     if (!container) return;
@@ -397,127 +173,30 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  window.deleteMessage = (msgId) => {
-    if (confirm("Thu hồi tin nhắn?")) {
-      window.socket.emit("deleteMessage", { messageId: msgId, recipientId: window.currentChatContext.id });
-    }
+  window.deleteMessage = (id) => {
+     if(confirm("Thu hồi?")) window.socket.emit("deleteMessage", { messageId: id, recipientId: window.currentChatContext.id });
   };
-  window.socket.on("messageDeleted", ({ messageId }) => {
-    const el = document.getElementById(`msg-${messageId}`);
-    if (el) el.remove();
-  });
+  window.socket.on("messageDeleted", ({ messageId }) => { const el = document.getElementById(`msg-${messageId}`); if(el) el.remove(); });
 
-  if (deleteChatBtn) {
-    deleteChatBtn.addEventListener("click", () => {
-      if (confirm("Xóa TOÀN BỘ cuộc trò chuyện với người này?")) {
-        window.socket.emit("deleteConversation", { recipientId: window.currentChatContext.id });
-      }
-    });
-  }
-  window.socket.on("conversationDeleted", ({ partnerId }) => {
-    if (window.currentChatContext.id == partnerId) {
-      messagesContainer.innerHTML = "";
-      alert("Cuộc trò chuyện đã bị xóa.");
-    }
-  });
-
-  if (attachBtn) {
-    attachBtn.addEventListener("click", () => {
-      if (window.openFileModal) window.openFileModal();
-      else alert("Tính năng đang phát triển");
-    });
-  }
-
-  // Emoji Picker
-  const emojiBtn = document.getElementById("emoji-trigger");
-  const emojiPicker = document.getElementById("emoji-picker");
-  if (emojiBtn && emojiPicker) {
-    emojiBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      emojiPicker.classList.toggle("hidden");
-    });
-    document.querySelectorAll(".emoji-grid span").forEach((s) => {
-      s.addEventListener("click", () => {
-        if (messageInput) {
-          messageInput.value += s.innerText;
-          messageInput.focus();
-          if (sendBtn) sendBtn.classList.remove("hidden");
-          if (heartBtn) heartBtn.classList.add("hidden");
-        }
-        emojiPicker.classList.add("hidden");
-      });
-    });
-    document.addEventListener("click", (e) => {
-      if (!emojiPicker.contains(e.target) && e.target !== emojiBtn) {
-        emojiPicker.classList.add("hidden");
-      }
-    });
-  }
-
-  // Group Modal Logic
-  if (mobileBack) {
-    mobileBack.addEventListener("click", () => {
-      if (chatContainer) chatContainer.classList.remove("mobile-active");
-      window.currentChatContext = { id: null };
-    });
-  }
-
-  if (createGroupBtn) {
-    createGroupBtn.addEventListener("click", () => {
-      if (groupModal) groupModal.classList.remove("hidden");
-      if (membersListDiv) {
-        membersListDiv.innerHTML = "";
-        if (window.allUsers)
-          window.allUsers.forEach((u) => {
-            if (u.id !== window.myUserId && u.id !== AI_BOT_ID) {
-              const div = document.createElement("div");
-              div.className = "member-option";
-              div.innerHTML = `<label style="display:flex;align-items:center;gap:10px;width:100%"><input type="checkbox" value="${u.id}"><span>${u.nickname || u.username}</span></label>`;
-              membersListDiv.appendChild(div);
-            }
-          });
-      }
-    });
-  }
-  if (closeGroupBtn) closeGroupBtn.addEventListener("click", () => groupModal.classList.add("hidden"));
-
-  if (confirmGroupBtn) {
-    confirmGroupBtn.addEventListener("click", async () => {
-      const groupName = document.getElementById("group-name-input").value.trim();
-      const checkedBoxes = membersListDiv.querySelectorAll("input:checked");
-      const members = Array.from(checkedBoxes).map((cb) => parseInt(cb.value));
-      if (!groupName || members.length === 0) return alert("Nhập tên và chọn thành viên!");
-      try {
-        const res = await fetch("/api/groups/create", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ name: groupName, members: members }),
-        });
-        if (res.ok) {
-          alert("Tạo nhóm thành công!");
-          groupModal.classList.add("hidden");
-          window.location.reload();
-        }
-      } catch (e) { console.error(e); }
-    });
-  }
-
-  // Settings Modal
-  window.changeBg = function (val) {
-    chatContentContainer.style.backgroundImage = "none";
-    chatContentContainer.style.background = val;
+  // Modal Logic
+  const setBtn = document.getElementById("chat-settings-btn");
+  const closeBgBtn = document.getElementById("close-bg-modal");
+  const saveBgBtn = document.getElementById("save-bg-btn");
+  if(setBtn) setBtn.addEventListener("click", () => document.getElementById("bg-modal").classList.remove("hidden"));
+  if(closeBgBtn) closeBgBtn.addEventListener("click", () => document.getElementById("bg-modal").classList.add("hidden"));
+  
+  window.changeBg = (val) => {
+    chatContentContainer.style.background = val.includes("http") ? "none" : val;
+    if(val.includes("http")) chatContentContainer.style.backgroundImage = `url('${val}')`;
+    else chatContentContainer.style.backgroundImage = "none";
     localStorage.setItem("chatBg", val);
-    document.getElementById("bg-modal").classList.add("hidden");
   };
-  if (settingsBtn) settingsBtn.addEventListener("click", () => document.getElementById("bg-modal").classList.remove("hidden"));
-  if (closeBgBtn) closeBgBtn.addEventListener("click", () => document.getElementById("bg-modal").classList.add("hidden"));
-  if (saveBgBtn) saveBgBtn.addEventListener("click", () => {
-    const url = document.getElementById("bg-url-input").value;
-    if (url) {
-      chatContentContainer.style.background = "none";
-      chatContentContainer.style.backgroundImage = `url('${url}')`;
-      localStorage.setItem("chatBg", url);
-      document.getElementById("bg-modal").classList.add("hidden");
-    }
+  if(saveBgBtn) saveBgBtn.addEventListener("click", () => {
+      const url = document.getElementById("bg-url-input").value;
+      if(url) { changeBg(url); document.getElementById("bg-modal").classList.add("hidden"); }
   });
+
+  // Mobile Back
+  const backBtn = document.getElementById("mobile-back-btn");
+  if(backBtn) backBtn.addEventListener("click", () => { chatContainer.classList.remove("mobile-active"); window.currentChatContext = { id: null }; });
 });
