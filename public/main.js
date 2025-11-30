@@ -1,5 +1,4 @@
 document.addEventListener("DOMContentLoaded", () => {
-  // Chỉ chạy ở trang chat
   if (!window.location.pathname.endsWith("chat.html")) return;
 
   const token = localStorage.getItem("token");
@@ -106,12 +105,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- SELECT CHAT (CHỌN NGƯỜI) ---
   function selectChat(user) {
-    // Cập nhật context
+    // KHI CHỌN USER THÌ MỚI GÁN CONTEXT
+    if (!user || !user.userId && user.userId !== 0) return; 
+
     window.currentChatContext = { id: user.userId, name: user.nickname || user.username, type: "user" };
     
-    // Update UI Header
-    document.getElementById("chat-header-title").textContent = window.currentChatContext.name;
-    document.getElementById("chat-status").textContent = user.userId === 0 ? "Trợ lý AI" : (user.online ? "Đang hoạt động" : "Ngoại tuyến");
+    const title = document.getElementById("chat-header-title");
+    const status = document.getElementById("chat-status");
+    
+    if(title) title.textContent = window.currentChatContext.name;
+    if(status) status.textContent = user.userId === 0 ? "Trợ lý AI" : (user.online ? "Đang hoạt động" : "Ngoại tuyến");
     
     if(headerAvatarContainer) {
         headerAvatarContainer.innerHTML = "";
@@ -126,8 +129,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // Reset UI Chat
-    messagesContainer.innerHTML = "";
-    messageInput.disabled = false;
+    if(messagesContainer) messagesContainer.innerHTML = "";
+    if(messageInput) messageInput.disabled = false;
     if(sendBtn) sendBtn.disabled = false;
     
     // Mobile slide effect
@@ -219,8 +222,9 @@ document.addEventListener("DOMContentLoaded", () => {
       chatForm.addEventListener("submit", (e) => {
         e.preventDefault();
         const val = messageInput.value.trim();
-        if (!val || !window.currentChatContext.id) return;
-        
+        // THÊM KIỂM TRA TRƯỚC KHI GỬI
+        if (!val || window.currentChatContext.id === null) return; 
+
         const msgData = { recipientId: window.currentChatContext.id, content: val };
         if(isSecretMode) msgData.ttl = 10000;
 
@@ -320,7 +324,7 @@ document.addEventListener("DOMContentLoaded", () => {
                       const formData = new FormData();
                       formData.append("files", blob, `voice_${Date.now()}.webm`);
                       voiceBtn.classList.remove("recording");
-                      messageInput.placeholder = "Đang gửi...";
+                      if(messageInput) messageInput.placeholder = "Đang gửi...";
                       
                       const res = await fetch("/api/upload", {method:"POST", headers:{"Authorization":`Bearer ${token}`}, body:formData});
                       const files = await res.json();
@@ -329,12 +333,12 @@ document.addEventListener("DOMContentLoaded", () => {
                           window.socket.emit("privateMessage", {recipientId: window.currentChatContext.id, content});
                       }
                       stream.getTracks().forEach(t=>t.stop());
-                      messageInput.placeholder = "Nhập tin nhắn...";
+                      if(messageInput) messageInput.placeholder = "Nhập tin nhắn...";
                   };
                   mediaRecorder.start();
                   isRecording=true;
                   voiceBtn.classList.add("recording");
-                  messageInput.placeholder = "Đang ghi âm...";
+                  if(messageInput) messageInput.placeholder = "Đang ghi âm...";
               } catch(e) { alert("Lỗi Mic: "+e.message); }
           } else {
               mediaRecorder.stop();
