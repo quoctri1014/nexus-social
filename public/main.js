@@ -146,7 +146,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // 7. CHỌN CUỘC TRÒ CHUYỆN (SELECT CHAT)
+ // 7. CHỌN CUỘC TRÒ CHUYỆN (SELECT CHAT) - UPDATE
   function selectChat(user) {
     if (!user || (!user.id && user.id !== 0)) return;
 
@@ -168,8 +168,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Update Header Avatar
     if (headerAvatarContainer) {
       headerAvatarContainer.innerHTML = "";
-      headerAvatarContainer.className = "avatar-circle"; // Reset class
-      // getAvatarHtml trả về string html, insert vào là xong
+      headerAvatarContainer.className = "avatar-circle"; 
       headerAvatarContainer.innerHTML = getAvatarHtml(user);
     }
 
@@ -182,13 +181,18 @@ document.addEventListener("DOMContentLoaded", () => {
     // Load History
     window.socket.emit("loadPrivateHistory", { recipientId: user.id });
 
-    // Ẩn/Hiện nút Xóa & Gọi (Ẩn gọi nếu là AI)
-    if (deleteChatBtn) deleteChatBtn.style.display = isAI ? "none" : "block"; 
+    // --- SỬA PHẦN NÀY ĐỂ NÚT KHÔNG BỊ MẤT ---
+    // Hiển thị nút dưới dạng Flex để căn giữa icon đẹp hơn, thay vì block
+    const deleteChatBtn = document.getElementById("delete-chat-btn");
+    if (deleteChatBtn) deleteChatBtn.style.display = isAI ? "none" : "flex"; 
     
     const callBtn = document.getElementById("call-button");
     const videoBtn = document.getElementById("video-call-button");
-    if(callBtn) callBtn.style.display = isAI ? "none" : "block";
-    if(videoBtn) videoBtn.style.display = isAI ? "none" : "block";
+    
+    // Nếu là AI thì ẩn, người thường thì hiện flex
+    if(callBtn) callBtn.style.display = isAI ? "none" : "flex";
+    if(videoBtn) videoBtn.style.display = isAI ? "none" : "flex";
+    // ----------------------------------------
 
     // Reset Secret Mode
     isSecretMode = false;
