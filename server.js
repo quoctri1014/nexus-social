@@ -13,7 +13,7 @@ import multer from "multer";
 import nodemailer from "nodemailer";
 import { GoogleGenAI } from "@google/genai";
 
-// --- THÊM CLOUDINARY (LƯU TRỮ TRÊN MÂY) ---
+// --- CLOUDINARY (LƯU TRỮ TRÊN MÂY) ---
 import { v2 as cloudinary } from "cloudinary";
 import { CloudinaryStorage } from "multer-storage-cloudinary";
 
@@ -27,7 +27,7 @@ const __dirname = path.dirname(__filename);
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const JWT_SECRET = process.env.JWT_SECRET || "secret_key_nexus_2025";
 
-// Kiểm tra Key AI
+// Khởi tạo AI (Có check lỗi để không sập server nếu thiếu key)
 let aiModel = null;
 if (GEMINI_API_KEY) {
   try {
@@ -38,9 +38,7 @@ if (GEMINI_API_KEY) {
     console.error("⚠️ AI Init Error:", err.message);
   }
 } else {
-  console.warn(
-    "⚠️ Thiếu GEMINI_API_KEY - Tính năng Chatbot sẽ không hoạt động."
-  );
+  console.warn("⚠️ Thiếu GEMINI_API_KEY - Chatbot sẽ không hoạt động.");
 }
 
 const app = express();
@@ -60,26 +58,34 @@ app.use(express.json());
 // 2. CẤU HÌNH UPLOAD (CLOUDINARY)
 // ==========================================
 
-// Cấu hình kết nối Cloudinary
+// Kiểm tra config Cloudinary
+if (
+  !process.env.CLOUDINARY_CLOUD_NAME ||
+  !process.env.CLOUDINARY_API_KEY ||
+  !process.env.CLOUDINARY_API_SECRET
+) {
+  console.warn("⚠️ Thiếu cấu hình Cloudinary - Tính năng gửi ảnh/file sẽ lỗi.");
+}
+
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Cấu hình nơi lưu trữ
+// Storage Config
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
-    folder: "nexus_uploads", // Tên thư mục trên Cloudinary
-    resource_type: "auto", // Tự động nhận diện (ảnh/video/âm thanh)
+    folder: "nexus_uploads",
+    resource_type: "auto", // Tự động nhận diện ảnh/video/âm thanh
     allowed_formats: ["jpg", "png", "jpeg", "gif", "webm", "mp3", "wav", "mp4"],
   },
 });
 
 const upload = multer({ storage: storage });
 
-// Cấu hình gửi Email OTP
+// Email Config
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
@@ -123,7 +129,10 @@ app.post("/api/send-otp", async (req, res) => {
     });
     res.json({ message: "Đã gửi OTP!" });
   } catch (e) {
-    res.status(500).json({ message: "Lỗi gửi mail: " + e.message });
+    console.error("Mail Error:", e);
+    res
+      .status(500)
+      .json({ message: "Lỗi gửi mail. Kiểm tra lại email server." });
   }
 });
 
@@ -206,14 +215,13 @@ app.post("/api/upload", upload.array("files", 5), (req, res) => {
     return res.status(400).json({ message: "No file" });
 
   const files = req.files.map((f) => ({
-    // Cloudinary trả về path là URL tuyệt đối
     type: f.mimetype
       ? f.mimetype.startsWith("image")
         ? "image"
         : "audio"
       : "file",
     name: f.originalname,
-    url: f.path,
+    url: f.path, // URL tuyệt đối từ Cloudinary
   }));
   res.json(files);
 });
@@ -280,7 +288,7 @@ io.on("connection", async (socket) => {
   onlineUsers[userId] = { socketId: socket.id, username };
   console.log(`User ${username} connected`);
 
-  // Gửi danh sách user + trạng thái online cho tất cả
+  // Gửi danh sách user + trạng thái online
   const sendUserList = async () => {
     const [users] = await db.query(
       "SELECT id, username, nickname, avatar FROM users"
@@ -298,7 +306,6 @@ io.on("connection", async (socket) => {
 
   // CHAT 1-1
   socket.on("privateMessage", async (data) => {
-    // Chat với AI
     if (data.recipientId === 0) {
       await db.query(
         "INSERT INTO messages (senderId, recipientId, content) VALUES (?, 0, ?)",
@@ -313,7 +320,6 @@ io.on("connection", async (socket) => {
       return;
     }
 
-    // Chat người dùng
     const [r] = await db.query(
       "INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)",
       [userId, data.recipientId, data.content]
@@ -325,11 +331,9 @@ io.on("connection", async (socket) => {
       createdAt: new Date(),
     };
 
-    // Gửi cho người nhận nếu online
     if (onlineUsers[data.recipientId]) {
       io.to(onlineUsers[data.recipientId].socketId).emit("newMessage", msg);
     }
-    // Gửi lại cho người gửi (để đồng bộ ID tin nhắn thật)
     socket.emit("newMessage", msg);
   });
 
@@ -341,11 +345,10 @@ io.on("connection", async (socket) => {
     socket.emit("privateHistory", { recipientId, messages: msgs });
   });
 
-  // --- WEBRTC SIGNALING (ĐÃ NÂNG CẤP) ---
+  // --- WEBRTC SIGNALING (GỌI ĐIỆN) ---
   socket.on("callOffer", async (d) => {
     const recipientSocket = onlineUsers[d.recipientId];
     if (recipientSocket) {
-      // Lấy thông tin đầy đủ của người gọi để gửi sang
       const [rows] = await db.query(
         "SELECT username, nickname, avatar FROM users WHERE id=?",
         [userId]
@@ -354,7 +357,6 @@ io.on("connection", async (socket) => {
       const callerName = caller.nickname || caller.username;
       let callerAvatar = caller.avatar;
 
-      // Fallback avatar nếu rỗng hoặc lỗi
       if (
         !callerAvatar ||
         (!callerAvatar.startsWith("http") && !callerAvatar.startsWith("/"))
@@ -371,7 +373,7 @@ io.on("connection", async (socket) => {
         senderAvatar: callerAvatar,
       });
     } else {
-      // NGƯỜI NHẬN OFFLINE -> Lưu thông báo cuộc gọi nhỡ vào DB
+      // XỬ LÝ CUỘC GỌI NHỠ
       const missedCallContent = JSON.stringify({
         type: "system",
         text: "📞 Cuộc gọi nhỡ",
@@ -380,8 +382,6 @@ io.on("connection", async (socket) => {
         "INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)",
         [userId, d.recipientId, missedCallContent]
       );
-
-      // Báo lại cho người gọi biết
       socket.emit("userOffline", { userId: d.recipientId });
     }
   });
@@ -417,7 +417,7 @@ io.on("connection", async (socket) => {
 
   socket.on("disconnect", async () => {
     delete onlineUsers[userId];
-    // Cập nhật lại danh sách user online cho mọi người
+    // Cập nhật danh sách user
     const [users] = await db.query(
       "SELECT id, username, nickname, avatar FROM users"
     );
@@ -432,7 +432,7 @@ io.on("connection", async (socket) => {
   });
 });
 
-// Fallback Route (Cho SPA)
+// Fallback cho SPA (Quan trọng)
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
