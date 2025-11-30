@@ -4,7 +4,17 @@ document.addEventListener("DOMContentLoaded", () => {
   const token = localStorage.getItem("token");
   if (!token) { window.location.href = "/index.html"; return; }
 
-  // 1. INIT SOCKET & VARS
+  // 1. DARK MODE
+  const themeToggle = document.getElementById("theme-toggle");
+  const currentTheme = localStorage.getItem("theme") || "dark";
+  document.body.setAttribute("data-theme", currentTheme);
+  themeToggle.addEventListener("click", () => {
+      const newTheme = document.body.getAttribute("data-theme") === "dark" ? "light" : "dark";
+      document.body.setAttribute("data-theme", newTheme);
+      localStorage.setItem("theme", newTheme);
+  });
+
+  // 2. INIT & VARS
   window.socket = io({ auth: { token } });
   window.myUserId = null;
   window.myUsername = null;
@@ -13,18 +23,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const chatContainer = document.getElementById("main-container");
   const messagesContainer = document.getElementById("messages");
   const messageInput = document.getElementById("message-input");
-  const headerAvatarContainer = document.querySelector(".chat-header .avatar-circle");
   const userListDiv = document.getElementById("user-list");
+  const headerAvatarContainer = document.querySelector(".chat-header .avatar-circle");
+  const chatContent = document.getElementById("chat-content-container");
 
-  // Mobile Back Button
-  document.getElementById("mobile-back-btn").addEventListener("click", () => {
-      chatContainer.classList.remove("mobile-active");
-      window.currentChatContext = { id: null };
-  });
-
-  // Load Info
+  // Load BG
   const savedBg = localStorage.getItem("chatBg");
-  if (savedBg) document.getElementById("chat-content-container").style.backgroundImage = `url('${savedBg}')`;
+  if (savedBg) chatContent.style.backgroundImage = savedBg.startsWith('http') ? `url('${savedBg}')` : savedBg;
 
   fetch("/api/me", { headers: { Authorization: `Bearer ${token}` } })
     .then((r) => r.json())
@@ -34,7 +39,6 @@ document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("nav-avatar").src = getAvatar(u);
     });
 
-  // 2. AVATAR & EMOJI
   function getAvatar(u) {
     if (u.id === 0 || u.userId === 0 || u.username === "AI_Assistant") return '<i class="fas fa-robot ai-avatar-icon"></i>';
     if (u.avatar && u.avatar.trim() !== "") return u.avatar.startsWith("http") || u.avatar.startsWith("data:") ? u.avatar : `/uploads/${u.avatar}`;
@@ -42,17 +46,9 @@ document.addEventListener("DOMContentLoaded", () => {
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(n)}&background=random&color=fff&size=128&bold=true`;
   }
 
-  // Emoji Button Init
-  const picker = new EmojiButton({ position: 'top-start', theme: 'dark', autoHide: false });
-  const emojiTrigger = document.getElementById('emoji-trigger');
-  
-  picker.on('emoji', selection => {
-      messageInput.value += selection.emoji;
-      messageInput.focus();
-  });
-  emojiTrigger.addEventListener('click', () => picker.togglePicker(emojiTrigger));
+  function scrollToBottom() { messagesContainer.scrollTop = messagesContainer.scrollHeight; }
 
-  // 3. RENDER USER LIST & SELECT CHAT
+  // 3. SOCKET & CHAT
   window.socket.on("userList", (users) => {
     userListDiv.innerHTML = "";
     window.allUsers = users; 
@@ -82,7 +78,7 @@ document.addEventListener("DOMContentLoaded", () => {
     messagesContainer.innerHTML = "";
     messageInput.disabled = false;
     document.getElementById("send-btn").disabled = false;
-    chatContainer.classList.add("mobile-active"); // Mobile slide
+    chatContainer.classList.add("mobile-active");
 
     window.socket.emit("loadPrivateHistory", { recipientId: user.userId });
     
@@ -90,9 +86,6 @@ document.addEventListener("DOMContentLoaded", () => {
     callBtns.forEach(btn => btn.style.display = user.userId === 0 ? "none" : "inline-block");
     window.dispatchEvent(new Event("contextChanged"));
   }
-
-  // 4. MESSAGE HANDLING
-  function scrollToBottom() { messagesContainer.scrollTop = messagesContainer.scrollHeight; }
 
   window.socket.on("privateHistory", ({ messages }) => {
     messagesContainer.innerHTML = "";
@@ -146,6 +139,12 @@ document.addEventListener("DOMContentLoaded", () => {
     messageInput.value = "";
   });
 
+  // 4. EMOJI PICKER
+  const picker = new EmojiButton({ position: 'top-start', theme: 'auto', autoHide: false });
+  const emojiTrigger = document.getElementById('emoji-trigger');
+  picker.on('emoji', selection => { messageInput.value += selection.emoji; messageInput.focus(); });
+  emojiTrigger.addEventListener('click', () => picker.togglePicker(emojiTrigger));
+
   // 5. VOICE CHAT (FIXED)
   const voiceBtn = document.getElementById("voice-btn");
   let mediaRecorder, audioChunks=[], isRecording=false;
@@ -159,13 +158,12 @@ document.addEventListener("DOMContentLoaded", () => {
                   audioChunks=[];
                   mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
                   mediaRecorder.onstop = async () => {
-                      const blob = new Blob(audioChunks, {type:'audio/webm'});
+                      const blob = new Blob(audioChunks, {type:'audio/webm'}); // WebM chuẩn cho trình duyệt
                       const formData = new FormData();
                       formData.append("files", blob, `voice_${Date.now()}.webm`);
                       voiceBtn.classList.remove("recording");
+                      messageInput.placeholder = "Đang gửi...";
                       
-                      // Hiển thị loading
-                      messageInput.placeholder = "Đang gửi voice...";
                       const res = await fetch("/api/upload", {method:"POST", headers:{"Authorization":`Bearer ${token}`}, body:formData});
                       const files = await res.json();
                       if(files.length) {
@@ -178,7 +176,6 @@ document.addEventListener("DOMContentLoaded", () => {
                   mediaRecorder.start();
                   isRecording=true;
                   voiceBtn.classList.add("recording");
-                  messageInput.placeholder = "Đang ghi âm (Bấm lại để gửi)...";
               } catch(e) { alert("Lỗi Mic: "+e.message); }
           } else {
               mediaRecorder.stop();
@@ -187,10 +184,14 @@ document.addEventListener("DOMContentLoaded", () => {
       });
   }
 
-  // 6. GROUP CREATE LOGIC
+  // 6. GROUP & UTILS
+  document.getElementById("mobile-back-btn").addEventListener("click", () => {
+      chatContainer.classList.remove("mobile-active");
+      window.currentChatContext = { id: null };
+  });
+
   const groupModal = document.getElementById("group-modal");
   const membersListDiv = document.getElementById("group-members-list");
-  
   document.getElementById("create-group-btn").addEventListener("click", () => {
       groupModal.classList.remove("hidden");
       membersListDiv.innerHTML = "";
@@ -199,59 +200,45 @@ document.addEventListener("DOMContentLoaded", () => {
               if(u.userId !== window.myUserId && u.userId !== 0) {
                   const div = document.createElement("div");
                   div.className = "member-option";
-                  div.style.padding = "10px";
-                  div.style.borderBottom = "1px solid rgba(255,255,255,0.1)";
-                  div.innerHTML = `<label style="display:flex;align-items:center;cursor:pointer;gap:10px;width:100%"><input type="checkbox" value="${u.userId}" style="width:20px;height:20px;"><span>${u.nickname || u.username}</span></label>`;
+                  div.innerHTML = `<label style="display:flex;align-items:center;gap:10px;width:100%"><input type="checkbox" value="${u.userId}"><span>${u.nickname || u.username}</span></label>`;
                   membersListDiv.appendChild(div);
               }
           });
       }
   });
-
   document.getElementById("close-group-modal").addEventListener("click", () => groupModal.classList.add("hidden"));
-
   document.getElementById("confirm-create-group").addEventListener("click", async () => {
       const groupName = document.getElementById("group-name-input").value.trim();
       const checkedBoxes = membersListDiv.querySelectorAll("input:checked");
       const members = Array.from(checkedBoxes).map(cb => parseInt(cb.value));
-
       if(!groupName) return alert("Nhập tên nhóm!");
       if(members.length === 0) return alert("Chọn thành viên!");
-
+      
       try {
           const res = await fetch("/api/groups/create", {
               method: "POST",
               headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
               body: JSON.stringify({ name: groupName, members: members })
           });
-          const data = await res.json();
-          if(res.ok) {
-              alert("Tạo nhóm thành công!");
-              groupModal.classList.add("hidden");
-              window.location.reload(); 
-          } else alert("Lỗi: " + data.message);
+          if(res.ok) { alert("Tạo nhóm thành công!"); groupModal.classList.add("hidden"); window.location.reload(); }
       } catch(e) { console.error(e); }
   });
 
-  // 7. UTILS: Attach & Settings
-  const attachBtn = document.getElementById("attach-btn");
-  if (attachBtn) attachBtn.addEventListener("click", () => { if (window.openFileModal) window.openFileModal(); });
-  
+  // Change Background
+  window.changeBg = function(gradient) {
+      chatContent.style.backgroundImage = "none";
+      chatContent.style.background = gradient;
+      localStorage.setItem("chatBg", gradient);
+      document.getElementById("bg-modal").classList.add("hidden");
+  };
   document.getElementById("chat-settings-btn").addEventListener("click", () => document.getElementById("bg-modal").classList.remove("hidden"));
   document.getElementById("close-bg-modal").addEventListener("click", () => document.getElementById("bg-modal").classList.add("hidden"));
   document.getElementById("save-bg-btn").addEventListener("click", () => {
       const url = document.getElementById("bg-url-input").value;
-      if(url) {
-          chatContentContainer.style.backgroundImage = `url('${url}')`;
-          localStorage.setItem("chatBg", url);
-          document.getElementById("bg-modal").classList.add("hidden");
-      }
+      if(url) { chatContent.style.backgroundImage = `url('${url}')`; localStorage.setItem("chatBg", url); document.getElementById("bg-modal").classList.add("hidden"); }
   });
 
-  // Dark Mode Toggle
-  document.getElementById("theme-toggle").addEventListener("click", () => {
-      const current = document.body.getAttribute("data-theme");
-      const next = current === "light" ? "dark" : "light";
-      document.body.setAttribute("data-theme", next);
-  });
+  // Attach
+  const attachBtn = document.getElementById("attach-btn");
+  if (attachBtn) attachBtn.addEventListener("click", () => { if (window.openFileModal) window.openFileModal(); });
 });
