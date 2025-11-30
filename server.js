@@ -11,16 +11,22 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import multer from "multer";
 import nodemailer from "nodemailer";
+
+// --- THƯ VIỆN AI ---
 import { GoogleGenerativeAI } from "@google/generative-ai";
+
+// --- CLOUDINARY ---
 import { v2 as cloudinary } from 'cloudinary';
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// CONFIG
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const JWT_SECRET = process.env.JWT_SECRET || "secret_key_nexus_2025";
 
+// AI INIT (Bọc try-catch để không sập nếu lỗi Key)
 let aiModel = null;
 if (GEMINI_API_KEY) {
     try {
@@ -38,33 +44,42 @@ const onlineUsers = {};
 app.use(express.static("public"));
 app.use(express.json());
 
-// Cloudinary Config
-if(process.env.CLOUDINARY_CLOUD_NAME) {
-    cloudinary.config({
-      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-      api_key: process.env.CLOUDINARY_API_KEY,
-      api_secret: process.env.CLOUDINARY_API_SECRET
-    });
+// --- CẤU HÌNH UPLOAD (FIX LỖI THIẾU CONFIG) ---
+if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+    console.error("❌ LỖI: Thiếu cấu hình Cloudinary trên Render! Hãy kiểm tra tab Environment.");
 }
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
-  params: { folder: 'nexus_uploads', resource_type: 'auto', allowed_formats: ['jpg', 'png', 'mp3', 'wav', 'mp4'] },
+  params: {
+    folder: 'nexus_uploads',
+    resource_type: 'auto',
+    allowed_formats: ['jpg', 'png', 'jpeg', 'gif', 'webm', 'mp3', 'wav', 'mp4'],
+  },
 });
 const upload = multer({ storage });
 
+// EMAIL
 const transporter = nodemailer.createTransport({
   service: "gmail", auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
 });
 const otpStore = new Map();
 
+// MIDDLEWARE AUTH
 const authenticateToken = (req, res, next) => {
   const token = req.headers["authorization"]?.split(" ")[1];
   if (!token) return res.sendStatus(401);
   jwt.verify(token, JWT_SECRET, (err, user) => { if (err) return res.sendStatus(403); req.user = user; next(); });
 };
 
-// API
+// ================= ROUTES =================
+
 app.post("/api/send-otp", async (req, res) => {
   const { email, username } = req.body;
   try {
@@ -126,29 +141,13 @@ app.post("/api/profile/update", authenticateToken, async (req, res) => {
   } catch (e) { res.status(500).json({ message: "Error" }); }
 });
 
-// --- ĐÃ CHUYỂN SUGGESTIONS LÊN TRÊN :ID ĐỂ TRÁNH LỖI 404 ---
 app.get("/api/users/suggestions", authenticateToken, async (req, res) => {
   try {
-    // Lấy danh sách user (trừ bản thân, AI, và những người đã gửi/nhận lời mời kết bạn)
-    const [u] = await db.query(`
-        SELECT id, username, nickname, avatar 
-        FROM users 
-        WHERE id != ? AND id != 0 
-        AND id NOT IN (
-            SELECT receiverId FROM friend_requests WHERE senderId = ? 
-            UNION 
-            SELECT senderId FROM friend_requests WHERE receiverId = ?
-        ) 
-        LIMIT 20`, 
-        [req.user.userId, req.user.userId, req.user.userId]);
+    const [u] = await db.query(`SELECT id, username, nickname, avatar FROM users WHERE id != ? AND id != 0 AND id NOT IN (SELECT receiverId FROM friend_requests WHERE senderId = ? UNION SELECT senderId FROM friend_requests WHERE receiverId = ?) LIMIT 20`, [req.user.userId, req.user.userId, req.user.userId]);
     res.json(u);
-  } catch (e) { 
-      console.error("Suggestion Error:", e);
-      res.status(500).json({ message: "Error" }); 
-  }
+  } catch (e) { res.status(500).json({ message: "Error" }); }
 });
 
-// API lấy chi tiết user (phải nằm sau suggestions)
 app.get("/api/users/:id", authenticateToken, async (req, res) => {
   try {
     const [rows] = await db.query("SELECT id, username, nickname, avatar, bio, location, work, education FROM users WHERE id = ?", [req.params.id]);
@@ -279,11 +278,16 @@ io.on("connection", async (socket) => {
   };
   await sendUserList();
 
+  // --- FIX LỖI CRASH TẠI ĐÂY ---
   socket.on("privateMessage", async (data) => {
     const content = data.content;
     const recipientId = data.recipientId;
 
-    if (recipientId === undefined || recipientId === null || !content) return;
+    // Bắt buộc phải có recipientId (hoặc là 0 nếu chat với AI) và content
+    if (recipientId === undefined || recipientId === null || content === undefined) {
+        console.warn("Socket Error: Dữ liệu tin nhắn không hợp lệ", data);
+        return; // Dừng ngay, không chạy lệnh SQL để tránh sập
+    }
 
     if (recipientId === 0) {
         await db.query("INSERT INTO messages (senderId, recipientId, content) VALUES (?, 0, ?)", [userId, content]);
@@ -291,8 +295,10 @@ io.on("connection", async (socket) => {
         await handleAIChat(content, userId, socket);
         return;
     }
+    
     const [r] = await db.query("INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)", [userId, recipientId, content]);
     const msg = { id: r.insertId, senderId: userId, content: content, createdAt: new Date() };
+    
     if (onlineUsers[recipientId]) io.to(onlineUsers[recipientId].socketId).emit("newMessage", msg);
     socket.emit("newMessage", msg);
   });
