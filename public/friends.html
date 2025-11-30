@@ -2,102 +2,41 @@
 <html lang="vi">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Bạn bè - Nexus</title>
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-    />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <link rel="stylesheet" href="home-style.css" />
     <style>
       /* CSS Riêng cho trang bạn bè */
-      .friend-container {
-        width: 100%;
-        max-width: 900px;
-        margin: 0 auto;
-      }
-      .friend-section-title {
-        font-size: 20px;
-        font-weight: 700;
-        margin-bottom: 15px;
-        color: var(--text-main);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-      }
-      .friend-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-        gap: 15px;
-        margin-bottom: 30px;
-      }
-      .friend-card-full {
-        background: white;
-        border-radius: 10px;
-        overflow: hidden;
-        box-shadow: var(--shadow);
-        display: flex;
-        flex-direction: column;
-      }
-      .friend-card-img {
-        width: 100%;
-        height: 200px;
-        object-fit: cover;
-        cursor: pointer;
-      }
-      .friend-card-body {
-        padding: 12px;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-        flex: 1;
-      }
-      .friend-card-name {
-        font-weight: 600;
-        font-size: 16px;
-        color: var(--text-main);
-        cursor: pointer;
-      }
-      .btn-confirm {
-        background: #1877f2;
-        color: white;
-        border: none;
-        padding: 8px;
-        border-radius: 6px;
-        font-weight: 600;
-        cursor: pointer;
-        width: 100%;
-        margin-top: auto;
-      }
-      .btn-delete {
-        background: #e4e6eb;
-        color: var(--text-main);
-        border: none;
-        padding: 8px;
-        border-radius: 6px;
-        font-weight: 600;
-        cursor: pointer;
-        width: 100%;
-      }
-      .btn-view {
-        background: #e4e6eb;
-        color: var(--text-main);
-        border: none;
-        padding: 8px;
-        border-radius: 6px;
-        font-weight: 600;
-        cursor: pointer;
-        width: 100%;
-        margin-top: auto;
-      }
-      .badge-count {
-        color: #e41e3f;
-        font-size: 18px;
-        margin-left: 5px;
+      .friend-container { width: 100%; max-width: 1000px; margin: 0 auto; padding: 20px; }
+      .friend-section-title { font-size: 20px; font-weight: 700; margin-bottom: 15px; color: var(--text-main); display: flex; justify-content: space-between; align-items: center; }
+      
+      /* Grid Responsive: Tự co giãn số cột theo màn hình */
+      .friend-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; margin-bottom: 30px; }
+      
+      .friend-card-full { background: var(--bg-card); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); display: flex; flex-direction: column; transition: transform 0.2s; border: 1px solid var(--glass-border); }
+      .friend-card-full:hover { transform: translateY(-5px); }
+      
+      .friend-card-img { width: 100%; height: 180px; object-fit: cover; cursor: pointer; }
+      
+      .friend-card-body { padding: 12px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+      .friend-card-name { font-weight: 600; font-size: 16px; color: var(--text-main); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      
+      .btn-confirm { background: var(--primary); color: white; border: none; padding: 8px; border-radius: 6px; font-weight: 600; cursor: pointer; width: 100%; margin-top: auto; transition: 0.2s; }
+      .btn-confirm:hover { opacity: 0.9; }
+      
+      .btn-delete, .btn-view { background: var(--hover-bg); color: var(--text-main); border: none; padding: 8px; border-radius: 6px; font-weight: 600; cursor: pointer; width: 100%; margin-top: 5px; }
+      .btn-delete:hover, .btn-view:hover { background: #d8dadf; }
+      
+      .badge-count { color: #e41e3f; font-size: 18px; margin-left: 5px; }
+      
+      /* Mobile Adjustments */
+      @media (max-width: 768px) {
+          .sidebar-left, .sidebar-right { display: none; } /* Ẩn sidebar trên mobile để tập trung nội dung */
+          .friend-container { padding: 10px; padding-bottom: 60px; }
+          .friend-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; } /* 2 cột trên mobile */
+          .friend-card-img { height: 140px; }
       }
     </style>
   </head>
@@ -105,95 +44,53 @@
     <nav class="navbar">
       <div class="nav-container">
         <div class="nav-left">
-          <div
-            class="logo"
-            onclick="window.location.href='/home.html'"
-            style="cursor: pointer"
-          >
-            <i class="fab fa-neos"></i> Nexus
+          <div class="logo" onclick="window.location.href='/home.html'" style="cursor: pointer">
+            <i class="fab fa-neos"></i> <span class="brand-text">Nexus</span>
           </div>
           <div class="search-bar">
             <i class="fas fa-search"></i>
-            <input
-              type="text"
-              placeholder="Tìm kiếm bạn bè..."
-              aria-label="Tìm kiếm"
-            />
+            <input type="text" placeholder="Tìm kiếm bạn bè..." />
           </div>
         </div>
 
         <div class="nav-center">
-          <a href="/home.html" class="nav-link" title="Trang chủ">
-            <i class="fas fa-home"></i>
-          </a>
-
-          <a href="#" class="nav-link active" title="Bạn bè">
-            <i class="fas fa-users"></i>
-          </a>
-
-          <a href="/chat.html" class="nav-link" title="Tin nhắn">
-            <i class="fas fa-comment-alt"></i>
-          </a>
-
-          <a href="/notifications.html" class="nav-link" title="Thông báo">
-            <i class="fas fa-bell"></i>
-            <span class="badge hidden" id="nav-notif-badge">0</span>
-          </a>
+          <a href="/home.html" class="nav-link" title="Trang chủ"><i class="fas fa-home"></i></a>
+          <a href="#" class="nav-link active" title="Bạn bè"><i class="fas fa-users"></i></a>
+          <a href="/chat.html" class="nav-link" title="Tin nhắn"><i class="fas fa-comment-alt"></i></a>
+          <a href="/notifications.html" class="nav-link" title="Thông báo"><i class="fas fa-bell"></i><span class="badge hidden" id="nav-notif-badge">0</span></a>
         </div>
 
         <div class="nav-right">
-          <div class="user-profile">
-            <img id="nav-avatar" src="" alt="" />
-            <div class="user-info-nav">
-              <span id="nav-username">Loading...</span>
-            </div>
-          </div>
-          <div class="nav-btn" onclick="logout()">
-            <i class="fas fa-sign-out-alt"></i>
-          </div>
+          <div class="user-profile"><img id="nav-avatar" src="" /><div class="user-info-nav desktop-only"><span id="nav-username">Loading...</span></div></div>
+          <div class="nav-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i></div>
         </div>
       </div>
     </nav>
 
     <div class="main-layout">
-      <aside class="sidebar-left">
+      <aside class="sidebar-left desktop-only">
         <div class="sidebar-content">
-          <div class="menu-item" onclick="window.location.href='/home.html'">
-            <i class="fas fa-newspaper" style="color: #1877f2"></i
-            ><span>Bảng tin</span>
-          </div>
-          <div class="menu-item active">
-            <i class="fas fa-users" style="color: #1da1f2"></i
-            ><span>Bạn bè</span>
-          </div>
-          <div class="menu-item" onclick="window.location.href='/chat.html'">
-            <i class="fas fa-comments" style="color: #45bd62"></i
-            ><span>Messenger</span>
-          </div>
+          <div class="menu-item" onclick="window.location.href='/home.html'"><i class="fas fa-newspaper" style="color: #1877f2"></i><span>Bảng tin</span></div>
+          <div class="menu-item active"><i class="fas fa-users" style="color: #1da1f2"></i><span>Bạn bè</span></div>
+          <div class="menu-item" onclick="window.location.href='/chat.html'"><i class="fas fa-comments" style="color: #45bd62"></i><span>Messenger</span></div>
         </div>
       </aside>
 
       <main class="feed-content" style="width: 100%">
         <div class="friend-container">
           <div id="requests-section" class="hidden">
-            <div class="friend-section-title">
-              Lời mời kết bạn <span class="badge-count" id="req-count"></span>
-            </div>
+            <div class="friend-section-title">Lời mời kết bạn <span class="badge-count" id="req-count"></span></div>
             <div class="friend-grid" id="request-list"></div>
-            <hr style="border: 0; border-top: 1px solid #ccc; margin: 20px 0" />
+            <hr style="border: 0; border-top: 1px solid var(--border); margin: 20px 0" />
           </div>
 
           <div class="friend-section-title">Những người bạn có thể biết</div>
-          <div class="friend-grid" id="suggestion-list">
-            <p>Đang tải gợi ý...</p>
-          </div>
+          <div class="friend-grid" id="suggestion-list"><p style="color:var(--text-sub)">Đang tải gợi ý...</p></div>
 
-          <hr style="border: 0; border-top: 1px solid #ccc; margin: 20px 0" />
+          <hr style="border: 0; border-top: 1px solid var(--border); margin: 20px 0" />
 
           <div class="friend-section-title">Bạn bè của bạn</div>
-          <div class="friend-grid" id="all-friends-list">
-            <p>Đang tải danh sách...</p>
-          </div>
+          <div class="friend-grid" id="all-friends-list"><p style="color:var(--text-sub)">Đang tải danh sách...</p></div>
         </div>
       </main>
     </div>
@@ -202,60 +99,19 @@
       <div class="modal-content profile-edit-box" style="width: 600px">
         <div class="modal-header">
           <h2>Trang cá nhân</h2>
-          <i
-            class="fas fa-times"
-            id="close-view-user"
-            style="cursor: pointer"
-          ></i>
+          <i class="fas fa-times" id="close-view-user" style="cursor: pointer"></i>
         </div>
         <div class="modal-body" style="padding: 0">
-          <div
-            style="
-              height: 120px;
-              background: linear-gradient(to right, #1877f2, #00c6ff);
-            "
-          ></div>
-          <div
-            style="
-              padding: 0 20px;
-              position: relative;
-              margin-top: -50px;
-              display: flex;
-              justify-content: space-between;
-              align-items: flex-end;
-            "
-          >
-            <div style="text-align: center">
-              <img
-                id="view-avatar"
-                src=""
-                style="
-                  width: 100px;
-                  height: 100px;
-                  border-radius: 50%;
-                  border: 4px solid white;
-                  object-fit: cover;
-                "
-              />
-            </div>
-            <button
-              class="btn-primary"
-              onclick="window.location.href='/chat.html'"
-            >
-              <i class="fas fa-comment"></i> Nhắn tin
-            </button>
+          <div style="height: 120px; background: linear-gradient(to right, #1877f2, #00c6ff);"></div>
+          <div style="padding: 0 20px; position: relative; margin-top: -50px; display: flex; justify-content: space-between; align-items: flex-end;">
+            <div style="text-align: center"><img id="view-avatar" src="" style="width: 100px; height: 100px; border-radius: 50%; border: 4px solid white; object-fit: cover;" /></div>
+            <button class="btn-primary" onclick="window.location.href='/chat.html'"><i class="fas fa-comment"></i> Nhắn tin</button>
           </div>
           <div style="padding: 15px 20px; border-bottom: 1px solid #eee">
-            <h2 id="view-name" style="margin: 0; font-size: 22px"></h2>
-            <p
-              id="view-bio"
-              style="color: #65676b; font-style: italic; margin-top: 5px"
-            ></p>
+            <h2 id="view-name" style="margin: 0; font-size: 22px; color:var(--text-main)"></h2>
+            <p id="view-bio" style="color: var(--text-sub); font-style: italic; margin-top: 5px"></p>
           </div>
-          <div style="padding: 20px; background: #f0f2f5">
-            <h4>Bài viết</h4>
-            <div id="view-user-posts"></div>
-          </div>
+          <div style="padding: 20px; background: var(--bg-body)"><h4>Bài viết</h4><div id="view-user-posts"></div></div>
         </div>
       </div>
     </div>
