@@ -4,8 +4,27 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Gợi Ý Bạn Bè - Nexus AI</title>
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+  />
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
+    /* CSS cho thanh Navbar (Lấy cảm hứng từ style của bạn) */
+    .app-navbar {
+      height: 60px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 1.5rem;
+      background: rgba(30, 41, 59, 0.95); /* Màu nền tối */
+      border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+      position: fixed;
+      top: 0;
+      width: 100%;
+      z-index: 1000;
+      backdrop-filter: blur(10px);
+    }
     .fade-in {
       animation: fadeIn 0.5s ease-in;
     }
@@ -13,43 +32,58 @@
       from { opacity: 0; transform: translateY(20px); }
       to { opacity: 1; transform: translateY(0); }
     }
-    .card-hover {
-      transition: all 0.3s ease;
-    }
     .card-hover:hover {
       transform: translateY(-5px);
       box-shadow: 0 10px 25px rgba(0,0,0,0.1);
     }
+    /* Điều chỉnh kích thước chiều cao cho mobile */
+    @media (max-width: 768px) {
+        .mobile-h-96 {
+            height: 400px; /* Chiều cao chat cố định */
+        }
+        .app-navbar h1 {
+            font-size: 1.25rem;
+        }
+    }
   </style>
 </head>
-<body class="bg-gradient-to-br from-blue-50 to-indigo-100">
-  <div class="max-w-7xl mx-auto px-4 py-8">
-    <!-- HEADER -->
-    <div class="mb-8">
-      <h1 class="text-4xl font-bold text-gray-800 mb-2">🤖 Gợi Ý Bạn Bè Thông Minh</h1>
+<body class="bg-gray-50">
+  
+  <nav class="app-navbar text-white">
+    <div class="flex items-center space-x-4">
+      <a href="/home.html" class="text-indigo-400 hover:text-indigo-300 transition" title="Quay lại trang chủ">
+        <i class="fas fa-arrow-left text-xl"></i>
+      </a>
+      <h1 class="text-xl font-bold">Nexus AI - Gợi Ý</h1>
+    </div>
+    <a href="/home.html" class="px-3 py-1 bg-indigo-500 rounded-full text-sm font-semibold hover:bg-indigo-600 transition">
+        Trang Chủ
+    </a>
+  </nav>
+
+  <div class="max-w-7xl mx-auto px-4 py-8 mt-16"> <div class="mb-8">
+      <h1 class="text-3xl md:text-4xl font-bold text-gray-800 mb-2">🤖 Gợi Ý Bạn Bè Thông Minh</h1>
       <p class="text-gray-600">AI sẽ tìm cho bạn những người bạn phù hợp nhất</p>
     </div>
 
-    <!-- TABS -->
-    <div class="flex gap-4 mb-8">
-      <button class="px-6 py-3 bg-blue-500 text-white rounded-lg font-semibold hover:bg-blue-600 transition tab-btn" 
+    <div class="flex gap-2 md:gap-4 mb-8 overflow-x-auto pb-2">
+      <button class="flex-shrink-0 px-4 md:px-6 py-2 md:py-3 bg-blue-500 text-white rounded-lg font-semibold hover:bg-blue-600 transition tab-btn" 
               onclick="switchTab('recommendations')">
         ⭐ Gợi Ý Cho Bạn
       </button>
-      <button class="px-6 py-3 bg-gray-300 text-gray-800 rounded-lg font-semibold hover:bg-gray-400 transition tab-btn" 
+      <button class="flex-shrink-0 px-4 md:px-6 py-2 md:py-3 bg-gray-300 text-gray-800 rounded-lg font-semibold hover:bg-gray-400 transition tab-btn" 
               onclick="switchTab('search')">
         🔍 Tìm Kiếm Nâng Cao
       </button>
-      <button class="px-6 py-3 bg-gray-300 text-gray-800 rounded-lg font-semibold hover:bg-gray-400 transition tab-btn" 
+      <button class="flex-shrink-0 px-4 md:px-6 py-2 md:py-3 bg-gray-300 text-gray-800 rounded-lg font-semibold hover:bg-gray-400 transition tab-btn" 
               onclick="switchTab('chat')">
         💬 Trò Chuyện Với AI
       </button>
     </div>
 
-    <!-- TAB 1: GỢI Ý MẶC ĐỊNH -->
     <div id="tab-recommendations" class="tab-content fade-in">
-      <div class="bg-white rounded-xl shadow-lg p-8 mb-6">
-        <div class="flex gap-4">
+      <div class="bg-white rounded-xl shadow-lg p-4 md:p-8 mb-6">
+        <div class="flex flex-col md:flex-row gap-3 md:gap-4">
           <input type="text" id="ai-search-criteria" placeholder="Mô tả tiêu chí tìm kiếm (vd: 'Lập trình viên yêu du lịch')" 
                  class="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
           <button id="btn-get-recommendations" class="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg font-semibold hover:shadow-lg transition">
@@ -65,9 +99,8 @@
       </div>
     </div>
 
-    <!-- TAB 2: TÌM KIẾM NÂNG CAO -->
     <div id="tab-search" class="tab-content fade-in hidden">
-      <div class="bg-white rounded-xl shadow-lg p-8">
+      <div class="bg-white rounded-xl shadow-lg p-4 md:p-8">
         <h2 class="text-2xl font-bold mb-6">Tìm Kiếm Bạn Bè Theo Tiêu Chí</h2>
         
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -100,11 +133,9 @@
       </div>
     </div>
 
-    <!-- TAB 3: TRỰC TIẾP TRƯỚC CHUYỆN VỚI AI -->
     <div id="tab-chat" class="tab-content fade-in hidden">
-      <div class="bg-white rounded-xl shadow-lg overflow-hidden flex flex-col h-96">
-        <!-- Chat Messages -->
-        <div id="ai-chat-messages" class="flex-1 p-6 overflow-y-auto bg-gray-50 flex flex-col space-y-4">
+      <div class="bg-white rounded-xl shadow-lg overflow-hidden flex flex-col mobile-h-96 h-96">
+        <div id="ai-chat-messages" class="flex-1 p-4 md:p-6 overflow-y-auto bg-gray-50 flex flex-col space-y-4">
           <div class="flex justify-start">
             <div class="bg-gray-300 text-black px-4 py-2 rounded-lg max-w-xs">
               👋 Chào! Tôi là trợ lý ảo của Nexus. Bạn có thể hỏi tôi về gợi ý bạn bè, hoặc bất cứ điều gì khác!
@@ -112,7 +143,6 @@
           </div>
         </div>
 
-        <!-- Chat Input -->
         <div class="p-4 bg-white border-t-2 border-gray-200 flex gap-2">
           <input type="text" id="ai-chat-input" placeholder="Nhập tin nhắn..." 
                  class="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
@@ -122,7 +152,6 @@
         </div>
       </div>
 
-      <!-- Quick Actions -->
       <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
         <button onclick="askAIForRecommendation()" 
                 class="p-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition font-semibold">
@@ -135,22 +164,39 @@
     </div>
   </div>
 
+  <script src="/js/ai-recommendations.js"></script>
   <script>
-    // Switch tabs
+    // Hàm chuyển đổi tab
     function switchTab(tabName) {
       document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
       document.getElementById(`tab-${tabName}`).classList.remove('hidden');
 
+      // Cập nhật trạng thái nút
       document.querySelectorAll('.tab-btn').forEach(el => {
         el.classList.remove('bg-blue-500', 'text-white');
         el.classList.add('bg-gray-300', 'text-gray-800');
       });
-      event.target.classList.remove('bg-gray-300', 'text-gray-800');
-      event.target.classList.add('bg-blue-500', 'text-white');
+      // Tìm nút được click và áp dụng style active
+      document.querySelector(`.tab-btn[onclick="switchTab('${tabName}')"]`).classList.remove('bg-gray-300', 'text-gray-800');
+      document.querySelector(`.tab-btn[onclick="switchTab('${tabName}')"]`).classList.add('bg-blue-500', 'text-white');
     }
 
-    // Load script ở đây
-    // Bạn cần import file ai-recommendations.js để sử dụng các hàm
+    // Tự động kích hoạt tab Gợi ý khi tải xong
+    document.addEventListener('DOMContentLoaded', () => {
+        // Kích hoạt tab recommendations mặc định
+        switchTab('recommendations');
+
+        // Gắn sự kiện cho các nút search nếu script ai-recommendations.js đã load
+        if (typeof searchFriendsWithAI !== 'undefined') {
+            document.getElementById('btn-get-recommendations').onclick = searchFriendsWithAI;
+        }
+        if (typeof advancedFriendSearch !== 'undefined') {
+             document.querySelector('#tab-search button').onclick = advancedFriendSearch;
+        }
+    });
+
+    // Các hàm global từ ai-recommendations.js (được gọi từ HTML)
+    // Cần đảm bảo file ai-recommendations.js được load trước khi các hàm này được gọi.
   </script>
 </body>
 </html>
