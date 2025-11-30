@@ -7,13 +7,14 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <link rel="stylesheet" href="chat-style.css" />
+    <script src="https://cdn.jsdelivr.net/npm/@joeattardi/emoji-button@4.6.0/dist/index.min.js"></script>
   </head>
   <body data-theme="dark">
     
     <nav class="navbar glass-header">
       <div class="nav-left">
         <div class="logo" onclick="location.href='/home.html'">
-            <svg width="32" height="32" viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="12" fill="url(#p)"/><path d="M12 29V11L28 29V11" stroke="white" stroke-width="4" stroke-linecap="round"/><defs><linearGradient id="p" x1="0" y1="0" x2="40" y2="40"><stop stop-color="#6366f1"/><stop offset="1" stop-color="#a855f7"/></linearGradient></defs></svg>
+            <svg width="32" height="32" viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="12" fill="#6366f1"/><path d="M12 29V11L28 29V11" stroke="white" stroke-width="4" stroke-linecap="round"/></svg>
             <span class="brand-text">Nexus</span>
         </div>
       </div>
@@ -21,7 +22,6 @@
         <a href="/home.html" class="nav-item"><i class="fas fa-home"></i></a>
         <a href="/friends.html" class="nav-item"><i class="fas fa-user-friends"></i></a>
         <a href="#" class="nav-item active"><i class="fas fa-comment-alt"></i></a>
-        <a href="/notifications.html" class="nav-item"><i class="fas fa-bell"></i></a>
       </div>
       <div class="nav-right">
         <div class="nav-profile"><img id="nav-avatar" src="" /></div>
@@ -36,7 +36,10 @@
             <h3>Tin nhắn</h3>
             <div class="icon-btn-small" id="create-group-btn" title="Tạo nhóm"><i class="fas fa-users-cog"></i></div>
         </div>
-        <div class="sidebar-search"><i class="fas fa-search"></i><input type="text" placeholder="Tìm kiếm..." /></div>
+        <div class="sidebar-search">
+             <i class="fas fa-search"></i>
+             <input type="text" placeholder="Tìm kiếm..." />
+        </div>
         <div class="user-list custom-scroll" id="user-list"></div>
       </aside>
 
@@ -59,7 +62,10 @@
         <div id="chat-content-container">
             <div class="chat-overlay"></div>
             <div id="messages" class="custom-scroll">
-                <div class="empty-placeholder"><div class="empty-icon"><i class="fab fa-facebook-messenger"></i></div><p>Bắt đầu trò chuyện.</p></div>
+                <div class="empty-placeholder">
+                    <div class="empty-icon"><i class="fab fa-facebook-messenger"></i></div>
+                    <p>Bắt đầu trò chuyện.</p>
+                </div>
             </div>
         </div>
 
@@ -73,15 +79,6 @@
                 </div>
                 <button type="button" class="btn-icon" id="voice-btn"><i class="fas fa-microphone"></i></button>
                 <button type="submit" class="btn-send" id="send-btn" disabled><i class="fas fa-paper-plane"></i></button>
-            </div>
-            
-            <div class="emoji-picker hidden" id="emoji-picker">
-                <div class="emoji-grid">
-                    <span>😀</span><span>😂</span><span>🤣</span><span>😍</span><span>🥰</span><span>😎</span>
-                    <span>😭</span><span>😡</span><span>👍</span><span>👎</span><span>❤️</span><span>💔</span>
-                    <span>🎉</span><span>🔥</span><span>💩</span><span>👻</span><span>👀</span><span>🤔</span>
-                    <span>🙏</span><span>🤝</span><span>👋</span><span>💋</span><span>🌹</span><span>💯</span>
-                </div>
             </div>
         </form>
       </main>
@@ -102,8 +99,17 @@
     <div id="bg-modal" class="modal-overlay hidden">
       <div class="modal-box glass-panel">
         <h3>Đổi hình nền</h3>
-        <input type="text" id="bg-url-input" placeholder="URL ảnh..." />
-        <button id="save-bg-btn">Lưu</button>
+        <p style="font-size: 12px; color: #ccc; margin-bottom: 10px;">Chọn màu:</p>
+        <div class="bg-presets">
+            <div class="bg-preset" style="background: linear-gradient(135deg, #667eea, #764ba2);" onclick="changeBg('linear-gradient(135deg, #667eea, #764ba2)')"></div>
+            <div class="bg-preset" style="background: linear-gradient(135deg, #ff9a9e, #fecfef);" onclick="changeBg('linear-gradient(135deg, #ff9a9e, #fecfef)')"></div>
+            <div class="bg-preset" style="background: linear-gradient(135deg, #a18cd1, #fbc2eb);" onclick="changeBg('linear-gradient(135deg, #a18cd1, #fbc2eb)')"></div>
+            <div class="bg-preset" style="background: linear-gradient(135deg, #84fab0, #8fd3f4);" onclick="changeBg('linear-gradient(135deg, #84fab0, #8fd3f4)')"></div>
+            <div class="bg-preset" style="background: linear-gradient(135deg, #0f172a, #334155);" onclick="changeBg('linear-gradient(135deg, #0f172a, #334155)')"></div>
+        </div>
+        <p style="font-size: 12px; color: #ccc; margin: 15px 0 5px;">Hoặc Link ảnh:</p>
+        <input type="text" id="bg-url-input" placeholder="https://..." />
+        <button id="save-bg-btn">Áp dụng Link</button>
         <div class="close-modal" id="close-bg-modal">Đóng</div>
       </div>
     </div>
