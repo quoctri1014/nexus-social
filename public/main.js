@@ -1,5 +1,5 @@
 /**
- * public/main.js - PHIÊN BẢN SỬ DỤNG ICON ROBOT THAY CHO ẢNH
+ * public/main.js - PHIÊN BẢN HOÀN CHỈNH (Realtime Chat & UX)
  */
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -19,11 +19,19 @@ document.addEventListener("DOMContentLoaded", () => {
   window.currentChatContext = { id: null, name: null, type: "user" };
 
   // Init
+  const chatContentContainer = document.getElementById(
+    "chat-content-container"
+  );
+  const messagesContainer = document.getElementById("messages");
+  const messageInput = document.getElementById("message-input");
+  const sendButton = document.getElementById("send-btn");
+  const userListDiv = document.getElementById("user-list");
+  const headerAvatarContainer = document.querySelector(
+    ".chat-header .avatar-circle"
+  );
+
   const savedBg = localStorage.getItem("chatBg");
-  if (savedBg)
-    document.getElementById(
-      "chat-content-container"
-    ).style.backgroundImage = `url('${savedBg}')`;
+  if (savedBg) chatContentContainer.style.backgroundImage = `url('${savedBg}')`;
 
   fetch("/api/me", { headers: { Authorization: `Bearer ${token}` } })
     .then((r) => r.json())
@@ -56,8 +64,12 @@ document.addEventListener("DOMContentLoaded", () => {
     )}&background=random&color=fff&size=128&bold=true&length=2`;
   }
 
+  // --- HÀM TỰ ĐỘNG CUỘN XUỐNG DƯỚI CÙNG ---
+  function scrollToBottom() {
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  }
+
   // --- RENDER DANH SÁCH USER ---
-  const userListDiv = document.getElementById("user-list");
   window.socket.on("userList", (users) => {
     userListDiv.innerHTML = "";
     users.forEach((u) => {
@@ -103,7 +115,7 @@ document.addEventListener("DOMContentLoaded", () => {
       type: "user",
     };
 
-    // Cập nhật Header Chat (Phần này cần chỉnh lại để hiển thị icon Robot nếu là AI)
+    // Cập nhật Header Chat
     document.getElementById("chat-header-title").textContent =
       window.currentChatContext.name;
     document.getElementById("chat-status").textContent =
@@ -114,9 +126,6 @@ document.addEventListener("DOMContentLoaded", () => {
         : "Ngoại tuyến";
 
     // --- Cập nhật Avatar trên Header ---
-    const headerAvatarContainer = document.querySelector(
-      ".chat-header .avatar-circle"
-    );
     headerAvatarContainer.innerHTML = ""; // Xóa nội dung cũ
     const avatarContent = getAvatar(user);
 
@@ -129,16 +138,22 @@ document.addEventListener("DOMContentLoaded", () => {
       headerAvatarContainer.innerHTML = `<img id="header-avatar" src="${avatarContent}">`;
       headerAvatarContainer.classList.remove("ai-icon-wrapper");
     }
-    // **********************************
 
-    document.getElementById("messages").innerHTML = "";
-    document.getElementById("message-input").disabled = false;
-    document.getElementById("send-btn").disabled = false;
+    messagesContainer.innerHTML = "";
+    messageInput.disabled = false;
+    sendButton.disabled = false;
 
     window.socket.emit("loadPrivateHistory", { recipientId: user.userId });
-    document
-      .querySelectorAll(".user-item")
-      .forEach((el) => el.classList.remove("active"));
+
+    // Cập nhật trạng thái active cho user item
+    document.querySelectorAll(".user-item").forEach((el) => {
+      const itemUser = el.querySelector(".user-name").textContent;
+      const isSelected =
+        itemUser === user.nickname || itemUser === user.username;
+      el.classList.toggle("active", isSelected);
+    });
+
+    // Ẩn/Hiện nút gọi cho AI
     const callBtns = document.querySelectorAll(".tool-btn");
     callBtns.forEach(
       (btn) => (btn.style.display = user.userId === 0 ? "none" : "inline-block")
@@ -146,61 +161,92 @@ document.addEventListener("DOMContentLoaded", () => {
     window.dispatchEvent(new Event("contextChanged"));
   }
 
-  // --- LOGIC TIN NHẮN VÀ CHỨC NĂNG KHÁC (Giữ nguyên) ---
+  // --- XỬ LÝ LỊCH SỬ TIN NHẮN (LOAD HISTORY) ---
   window.socket.on("privateHistory", ({ messages }) => {
-    const container = document.getElementById("messages");
-    container.innerHTML = "";
-    messages.forEach((m) => appendMessage(m));
+    messagesContainer.innerHTML = "";
+    messages.forEach((m) => appendMessage(m, false)); // false: không cuộn
+    scrollToBottom(); // Cuộn xuống cuối sau khi load xong
   });
 
+  // --- XỬ LÝ TIN NHẮN REALTIME MỚI ---
   window.socket.on("newMessage", (msg) => {
     const isCurrent = msg.senderId === window.currentChatContext.id;
     const isMe = msg.senderId === window.myUserId;
     const isAI = msg.senderId === 0 && window.currentChatContext.id === 0;
+
+    // Chỉ hiển thị tin nhắn nếu nó thuộc cuộc hội thoại đang mở (của mình gửi, người kia gửi, hoặc AI gửi cho mình)
     if (isCurrent || isMe || isAI) appendMessage(msg);
   });
 
-  window.appendMessage = function (msg) {
-    const container = document.getElementById("messages");
+  // --- HÀM RENDER TIN NHẮN ---
+  window.appendMessage = function (msg, shouldScroll = true) {
     const div = document.createElement("div");
     const type = msg.senderId === window.myUserId ? "user" : "other";
     div.className = `message ${type}`;
     let contentHtml = msg.content;
+    let isFile = false;
+
     try {
       const json = JSON.parse(msg.content);
       if (json.type === "image") {
         div.className += " image-message";
         contentHtml = `<img src="${json.url}" class="msg-image" onclick="window.open('${json.url}')">`;
+        isFile = true;
       } else if (json.type === "audio") {
         div.className += " audio-message";
         contentHtml = `<audio controls src="${json.url}"></audio>`;
+        isFile = true;
       } else if (json.type === "file") {
         div.className += " file-message";
-        contentHtml = `<div style="display:flex;align-items:center;gap:10px"><i class="fas fa-file-alt" style="font-size:24px"></i><div><div style="font-weight:bold">${json.name}</div><a href="${json.url}" download style="color:white;text-decoration:underline">Tải xuống</a></div></div>`;
+        contentHtml = `<div style="display:flex;align-items:center;gap:10px"><i class="fas fa-file-alt" style="font-size:24px"></i><div><div style="font-weight:bold">${json.name}</div><a href="${json.url}" download style="color:inherit;text-decoration:underline">Tải xuống</a></div></div>`;
+        isFile = true;
       }
-    } catch (e) {}
+    } catch (e) {
+      // Tin nhắn dạng text thường
+    }
+
     const timeStr = new Date(msg.createdAt || Date.now()).toLocaleTimeString(
       "vi-VN",
       { hour: "2-digit", minute: "2-digit" }
     );
+
+    // Thêm nội dung tin nhắn và timestamp
     div.innerHTML = `${contentHtml}<span class="timestamp">${timeStr}</span>`;
-    container.appendChild(div);
-    container.scrollTop = container.scrollHeight;
+
+    // Nếu là file, thêm class riêng để style
+    if (isFile) div.classList.add("file-type-message");
+
+    messagesContainer.appendChild(div);
+
+    // Chỉ cuộn xuống cuối khi có tin nhắn mới đến
+    if (shouldScroll) {
+      scrollToBottom();
+    }
   };
 
+  // --- XỬ LÝ GỬI TIN NHẮN TEXT ---
   document.getElementById("chat-form").addEventListener("submit", (e) => {
     e.preventDefault();
-    const input = document.getElementById("message-input");
-    const val = input.value.trim();
+    const val = messageInput.value.trim();
     if (!val || !window.currentChatContext.id) return;
+
+    // Gửi Socket
     window.socket.emit("privateMessage", {
       recipientId: window.currentChatContext.id,
       content: val,
     });
-    input.value = "";
+
+    // Hiển thị ngay lên màn hình của mình
+    window.appendMessage({
+      senderId: window.myUserId,
+      content: val,
+      createdAt: new Date(),
+    });
+
+    messageInput.value = "";
   });
 
-  // Voice
+  // --- CHỨC NĂNG GHI ÂM (Voice) ---
   const voiceBtn = document.getElementById("voice-btn");
   let mediaRecorder,
     audioChunks = [],
@@ -208,6 +254,9 @@ document.addEventListener("DOMContentLoaded", () => {
   if (voiceBtn) {
     voiceBtn.addEventListener("click", async () => {
       if (!window.currentChatContext.id) return alert("Chọn người để gửi!");
+      const isSendingFile = document.getElementById("send-file")?.disabled;
+      if (isSendingFile) return alert("Đang gửi file, vui lòng đợi!"); // Thêm check
+
       if (!isRecording) {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({
@@ -217,53 +266,72 @@ document.addEventListener("DOMContentLoaded", () => {
           audioChunks = [];
           mediaRecorder.ondataavailable = (event) =>
             audioChunks.push(event.data);
+
           mediaRecorder.onstop = async () => {
             const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
             const formData = new FormData();
             formData.append("files", audioBlob, `voice_${Date.now()}.webm`);
-            const res = await fetch("/api/upload", {
-              method: "POST",
-              headers: { Authorization: `Bearer ${token}` },
-              body: formData,
-            });
-            const files = await res.json();
-            if (files.length) {
-              const content = JSON.stringify({
-                type: "audio",
-                url: files[0].url,
-                name: "Voice",
+
+            // Hiện trạng thái đang gửi
+            voiceBtn.classList.remove("recording");
+            document.getElementById("message-input").placeholder =
+              "Đang tải lên...";
+
+            try {
+              const res = await fetch("/api/upload", {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}` },
+                body: formData,
               });
-              window.socket.emit("privateMessage", {
-                recipientId: window.currentChatContext.id,
-                content,
-              });
-              window.appendMessage({
-                senderId: window.myUserId,
-                content,
-                createdAt: new Date(),
-              });
+
+              if (!res.ok) throw new Error("Upload thất bại");
+
+              const files = await res.json();
+              if (files.length) {
+                const content = JSON.stringify({
+                  type: "audio",
+                  url: files[0].url,
+                  name: "Voice",
+                });
+
+                // Gửi tin nhắn socket
+                window.socket.emit("privateMessage", {
+                  recipientId: window.currentChatContext.id,
+                  content,
+                });
+
+                // Hiển thị lên màn hình
+                window.appendMessage({
+                  senderId: window.myUserId,
+                  content,
+                  createdAt: new Date(),
+                });
+              }
+            } catch (err) {
+              alert("Lỗi Gửi Tin Nhắn Thoại: " + err.message);
+            } finally {
+              stream.getTracks().forEach((track) => track.stop());
+              document.getElementById("message-input").placeholder =
+                "Nhập tin nhắn...";
             }
-            stream.getTracks().forEach((track) => track.stop());
           };
+
           mediaRecorder.start();
           isRecording = true;
           voiceBtn.classList.add("recording");
           document.getElementById("message-input").placeholder =
-            "Đang ghi âm...";
+            "Đang ghi âm (Bấm lại để dừng)...";
         } catch (err) {
           alert("Lỗi Mic: " + err.message);
         }
       } else {
         mediaRecorder.stop();
         isRecording = false;
-        voiceBtn.classList.remove("recording");
-        document.getElementById("message-input").placeholder =
-          "Nhập tin nhắn...";
       }
     });
   }
 
-  // Attach & Emoji
+  // --- NÚT ĐÍNH KÈM (Attach) & EMOJI ---
   const attachBtn = document.getElementById("attach-btn");
   if (attachBtn)
     attachBtn.addEventListener("click", () => {
@@ -281,6 +349,7 @@ document.addEventListener("DOMContentLoaded", () => {
       s.addEventListener("click", () => {
         document.getElementById("message-input").value += s.innerText;
         emojiPicker.classList.add("hidden");
+        document.getElementById("message-input").focus(); // Giúp gõ tiếp
       });
     });
     document.addEventListener("click", (e) => {
@@ -289,7 +358,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Modals
+  // --- MODALS (Cài đặt nền) ---
   document
     .getElementById("chat-settings-btn")
     .addEventListener("click", () =>
@@ -303,9 +372,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("save-bg-btn").addEventListener("click", () => {
     const url = document.getElementById("bg-url-input").value;
     if (url) {
-      document.getElementById(
-        "chat-content-container"
-      ).style.backgroundImage = `url('${url}')`;
+      chatContentContainer.style.backgroundImage = `url('${url}')`;
       localStorage.setItem("chatBg", url);
       document.getElementById("bg-modal").classList.add("hidden");
     }
