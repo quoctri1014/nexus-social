@@ -18,19 +18,24 @@ import { CloudinaryStorage } from "multer-storage-cloudinary";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// --- 1. CẤU HÌNH BIẾN MÔI TRƯỜNG ---
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const JWT_SECRET = process.env.JWT_SECRET || "secret_key_nexus_2025";
-const AI_BOT_ID = 1; 
+const AI_BOT_ID = 1; // ID của AI trong Database là 1
 
+// --- 2. KHỞI TẠO AI (Google Gemini) ---
 let aiModel = null;
 if (GEMINI_API_KEY) {
   try {
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    aiModel = genAI.getGenerativeModel({ model: "gemini-pro" });
-    console.log("✅ AI Model initialized");
+    // Sử dụng model Flash cho tốc độ phản hồi nhanh
+    aiModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    console.log("✅ AI Model initialized (Gemini 1.5 Flash)");
   } catch (err) {
-    console.error("⚠️ AI Error:", err.message);
+    console.error("⚠️ Lỗi khởi tạo AI:", err.message);
   }
+} else {
+    console.log("⚠️ CHƯA CÓ GEMINI_API_KEY. AI sẽ không trả lời.");
 }
 
 const app = express();
@@ -44,13 +49,16 @@ const onlineUsers = {};
 app.use(express.static("public"));
 app.use(express.json());
 
-// --- UPLOAD CONFIG ---
+// --- 3. CẤU HÌNH UPLOAD (Cloudinary hoặc Local) ---
 const uploadDir = path.join(__dirname, "public/uploads");
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
 
 let upload;
+// Kiểm tra nếu có cấu hình Cloudinary trên Render
 if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY) {
-  console.log("☁️  Storage: Cloudinary");
+  console.log("☁️  Storage: Đang dùng Cloudinary");
   cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
@@ -58,11 +66,15 @@ if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY) {
   });
   const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
-    params: { folder: "nexus_uploads", resource_type: "auto", allowed_formats: ["jpg", "png", "mp3", "wav", "mp4", "webm"] },
+    params: {
+      folder: "nexus_uploads",
+      resource_type: "auto", // Tự động nhận diện ảnh/video/âm thanh
+      allowed_formats: ["jpg", "png", "jpeg", "mp3", "wav", "mp4", "webm"],
+    },
   });
   upload = multer({ storage });
 } else {
-  console.log("💾 Storage: Local Disk");
+  console.log("💾 Storage: Đang dùng Ổ cứng Local (Lưu ý: File sẽ mất khi Render khởi động lại)");
   const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, uploadDir),
     filename: (req, file, cb) => {
@@ -73,12 +85,14 @@ if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY) {
   upload = multer({ storage });
 }
 
+// --- 4. CẤU HÌNH EMAIL ---
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
 });
 const otpStore = new Map();
 
+// --- MIDDLEWARE XÁC THỰC ---
 const authenticateToken = (req, res, next) => {
   const token = req.headers["authorization"]?.split(" ")[1];
   if (!token) return res.sendStatus(401);
@@ -89,34 +103,44 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-// --- API ROUTES ---
+// ================= API ROUTES =================
+
+// API Upload File
 app.post("/api/upload", upload.array("files", 5), (req, res) => {
-  if (!req.files || req.files.length === 0) return res.status(400).json({ message: "No file" });
+  if (!req.files || req.files.length === 0) return res.status(400).json({ message: "Chưa chọn file nào" });
+  
   const files = req.files.map((f) => {
+    // Nếu dùng Cloudinary, f.path là URL web. Nếu dùng Local, f.path là đường dẫn máy.
     let url = f.path;
-    if (!f.path.startsWith("http")) url = `/uploads/${f.filename}`;
-    return { type: f.mimetype.includes("image") ? "image" : "audio", name: f.originalname, url: url };
+    if (!f.path.startsWith("http")) {
+        url = `/uploads/${f.filename}`; // Chuyển đường dẫn local thành URL truy cập được
+    }
+    return { 
+        type: f.mimetype.includes("image") ? "image" : "audio", 
+        name: f.originalname, 
+        url: url 
+    };
   });
   res.json(files);
 });
 
-// Auth & User APIs
+// Auth APIs
 app.post("/api/send-otp", async (req, res) => {
   const { email, username } = req.body;
   try {
     const [exists] = await db.query("SELECT id FROM users WHERE email = ? OR username = ?", [email, username]);
-    if (exists.length > 0) return res.status(400).json({ message: "Đã tồn tại!" });
+    if (exists.length > 0) return res.status(400).json({ message: "Email hoặc Username đã tồn tại!" });
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     otpStore.set(email, { otp, expires: Date.now() + 300000 });
-    await transporter.sendMail({ from: "Nexus", to: email, subject: "OTP", html: `<h3>OTP: <b>${otp}</b></h3>` });
+    await transporter.sendMail({ from: "Nexus Support", to: email, subject: "Mã OTP Xác thực", html: `<h3>Mã OTP của bạn là: <b style="color:blue">${otp}</b></h3>` });
     res.json({ message: "OK" });
-  } catch (e) { res.status(500).json({ message: "Lỗi mail" }); }
+  } catch (e) { console.error(e); res.status(500).json({ message: "Lỗi gửi mail" }); }
 });
 
 app.post("/api/verify-otp", (req, res) => {
   const { email, otp } = req.body;
   const data = otpStore.get(email);
-  if (!data || Date.now() > data.expires || data.otp !== otp) return res.status(400).json({ message: "Sai OTP" });
+  if (!data || Date.now() > data.expires || data.otp !== otp) return res.status(400).json({ message: "Mã OTP sai hoặc đã hết hạn" });
   res.json({ message: "OK" });
 });
 
@@ -127,17 +151,17 @@ app.post("/api/complete-register", async (req, res) => {
     await db.query("INSERT INTO users (username, passwordHash, email, nickname, avatar) VALUES (?, ?, ?, ?, ?)", [username, hash, email, nickname, avatar]);
     otpStore.delete(email);
     res.status(201).json({ message: "OK" });
-  } catch (e) { res.status(500).json({ message: "Lỗi DB" }); }
+  } catch (e) { res.status(500).json({ message: "Lỗi Database" }); }
 });
 
 app.post("/api/login", async (req, res) => {
   const { username, password } = req.body;
   try {
     const [rows] = await db.query("SELECT * FROM users WHERE username = ?", [username]);
-    if (!rows[0] || !(await bcrypt.compare(password, rows[0].passwordHash))) return res.status(400).json({ message: "Sai thông tin" });
+    if (!rows[0] || !(await bcrypt.compare(password, rows[0].passwordHash))) return res.status(400).json({ message: "Sai tên đăng nhập hoặc mật khẩu" });
     const token = jwt.sign({ userId: rows[0].id, username: rows[0].username }, JWT_SECRET, { expiresIn: "7d" });
     res.json({ message: "OK", token });
-  } catch (e) { res.status(500).json({ message: "Error" }); }
+  } catch (e) { res.status(500).json({ message: "Lỗi Server" }); }
 });
 
 app.get("/api/me", authenticateToken, async (req, res) => {
@@ -145,6 +169,7 @@ app.get("/api/me", authenticateToken, async (req, res) => {
   res.json(r[0]);
 });
 
+// Search & Friends
 app.get("/api/users/search", authenticateToken, async (req, res) => {
   const query = req.query.q;
   if (!query) return res.json([]);
@@ -189,6 +214,7 @@ app.post("/api/friends/accept", authenticateToken, async (req, res) => {
   } catch (e) { res.status(500).json({ message: "Error" }); }
 });
 
+// Group
 app.post("/api/groups/create", authenticateToken, async (req, res) => {
   const { name, members } = req.body;
   const creatorId = req.user.userId;
@@ -212,17 +238,39 @@ app.post("/api/groups/create", authenticateToken, async (req, res) => {
   } catch (e) { await conn.rollback(); res.status(500).json({ message: "Error" }); } finally { conn.release(); }
 });
 
-// --- SOCKET ---
+// ================= SOCKET.IO LOGIC =================
+
+// Hàm xử lý chat với AI
 async function handleAIChat(msg, uid, socket) {
-  if (!aiModel) return socket.emit("newMessage", { senderId: AI_BOT_ID, content: "AI chưa sẵn sàng.", createdAt: new Date() });
+  if (!aiModel) {
+    return socket.emit("newMessage", { 
+        senderId: AI_BOT_ID, 
+        content: "Hệ thống AI đang bảo trì hoặc chưa cấu hình API Key.", 
+        createdAt: new Date() 
+    });
+  }
+  
   try {
     const result = await aiModel.generateContent(msg);
-    const reply = result.response.text();
+    const response = await result.response;
+    const reply = response.text();
+    
+    // Lưu câu trả lời của AI vào DB
     const [r] = await db.query("INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)", [AI_BOT_ID, uid, reply]);
-    socket.emit("newMessage", { id: r.insertId, senderId: AI_BOT_ID, content: reply, createdAt: new Date() });
-  } catch (e) { socket.emit("newMessage", { senderId: AI_BOT_ID, content: "AI bận.", createdAt: new Date() }); }
+    
+    socket.emit("newMessage", {
+      id: r.insertId,
+      senderId: AI_BOT_ID,
+      content: reply,
+      createdAt: new Date(),
+    });
+  } catch (e) {
+    console.error("AI Error:", e);
+    socket.emit("newMessage", { senderId: AI_BOT_ID, content: "AI đang gặp sự cố kết nối.", createdAt: new Date() });
+  }
 }
 
+// Middleware Socket
 io.use((socket, next) => {
   const token = socket.handshake.auth.token;
   jwt.verify(token, JWT_SECRET, (err, user) => {
@@ -243,24 +291,34 @@ io.on("connection", async (socket) => {
   };
   await sendUserList();
 
+  // --- 1. CHAT RIÊNG & AI ---
   socket.on("privateMessage", async (data) => {
     const { recipientId, content, ttl } = data;
     if (!recipientId || !content) return;
 
+    // Trường hợp Chat với AI
     if (recipientId === AI_BOT_ID) {
+      // Lưu tin nhắn người dùng
       await db.query("INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)", [userId, AI_BOT_ID, content]);
+      // Phản hồi UI ngay
       socket.emit("newMessage", { senderId: userId, content: content, createdAt: new Date() });
+      // Gọi AI trả lời
       await handleAIChat(content, userId, socket);
       return;
     }
 
+    // Trường hợp Chat người với người
     const [r] = await db.query("INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)", [userId, recipientId, content]);
     const msg = { id: r.insertId, senderId: userId, content, createdAt: new Date(), ttl };
+    
     if (onlineUsers[recipientId]) io.to(onlineUsers[recipientId].socketId).emit("newMessage", msg);
     socket.emit("newMessage", msg);
+    
+    // Tự hủy
     if (ttl) setTimeout(async () => { await db.query("DELETE FROM messages WHERE id = ?", [r.insertId]); }, ttl);
   });
 
+  // --- 2. XÓA TIN NHẮN ---
   socket.on("deleteConversation", async ({ recipientId }) => {
     await db.query("DELETE FROM messages WHERE (senderId=? AND recipientId=?) OR (senderId=? AND recipientId=?)", [userId, recipientId, recipientId, userId]);
     socket.emit("conversationDeleted", { partnerId: recipientId });
@@ -273,15 +331,18 @@ io.on("connection", async (socket) => {
     if (onlineUsers[recipientId]) io.to(onlineUsers[recipientId].socketId).emit("messageDeleted", { messageId });
   });
 
+  // --- 3. LỊCH SỬ CHAT ---
   socket.on("loadPrivateHistory", async ({ recipientId }) => {
     const [msgs] = await db.query("SELECT * FROM messages WHERE (senderId=? AND recipientId=?) OR (senderId=? AND recipientId=?) ORDER BY createdAt ASC", [userId, recipientId, recipientId, userId]);
     socket.emit("privateHistory", { recipientId, messages: msgs });
   });
 
+  // --- 4. HIỆU ỨNG TIM ---
   socket.on("sendHeart", ({ recipientId }) => {
     if (onlineUsers[recipientId]) io.to(onlineUsers[recipientId].socketId).emit("heartAnimation");
   });
 
+  // --- 5. GỌI ĐIỆN (WEBRTC SIGNALING) ---
   socket.on("callOffer", async (d) => {
     const rec = onlineUsers[d.recipientId];
     if (rec) {
@@ -301,6 +362,8 @@ io.on("connection", async (socket) => {
   });
 });
 
+// Route mặc định cho SPA (Single Page App)
 app.get("*", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
+
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`✅ Server running`));
+server.listen(PORT, () => console.log(`✅ Server running on http://localhost:${PORT}`));
