@@ -50,19 +50,6 @@ body { font-family: "Inter", sans-serif; background-color: var(--bg-body); color
 .user-info-nav { display: flex; flex-direction: column; line-height: 1.2; }
 .user-info-nav span { font-weight: 600; font-size: 14px; }
 /* Trong phần NAVBAR hoặc LAYOUT */
-.nav-link i.fa-robot {
-    /* Tùy chỉnh màu sắc để nổi bật */
-    color: #6366f1; 
-    transition: transform 0.2s;
-}
-.nav-link:hover i.fa-robot {
-    transform: scale(1.1);
-}
-
-/* Thêm style cho menu item bên trái */
-.sidebar-content .menu-item i.fa-robot {
-    color: #6366f1; /* Màu tím */
-}
 /* LAYOUT */
 .main-layout { display: flex; justify-content: center; padding-top: calc(var(--header-h) + 20px); gap: 30px; max-width: 1400px; margin: 0 auto; }
 .sidebar-left, .sidebar-right { width: 280px; position: sticky; top: 80px; height: calc(100vh - 100px); overflow-y: auto; }
