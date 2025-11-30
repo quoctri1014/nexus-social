@@ -277,6 +277,296 @@ app.post("/api/groups/create", authenticateToken, async (req, res) => {
     res.json({ message: "OK" });
   } catch (e) { await conn.rollback(); res.status(500).json({ message: "Error" }); } finally { conn.release(); }
 });
+// ===== THÊM CÁC API ENDPOINT NÀY VÀO SERVER.JS =====
+// (Thêm sau các API routes hiện có, trước phần SOCKET)
+
+// --- UPDATE PROFILE ---
+app.post("/api/profile/update", authenticateToken, async (req, res) => {
+  const { nickname, bio, location, work, education, avatar } = req.body;
+  const userId = req.user.userId;
+
+  try {
+    const [result] = await db.query(
+      `UPDATE users SET nickname=?, bio=?, location=?, work=?, education=?, avatar=? WHERE id=?`,
+      [nickname, bio, location, work, education, avatar, userId]
+    );
+
+    if (result.affectedRows > 0) {
+      res.json({ message: "Profile updated successfully" });
+    } else {
+      res.status(400).json({ message: "Failed to update profile" });
+    }
+  } catch (e) {
+    res.status(500).json({ message: "Error updating profile" });
+  }
+});
+
+// --- GET POSTS ---
+app.get("/api/posts", authenticateToken, async (req, res) => {
+  try {
+    const [posts] = await db.query(
+      `SELECT p.*, u.username, u.nickname, u.avatar FROM posts p 
+       JOIN users u ON p.userId = u.id 
+       ORDER BY p.createdAt DESC LIMIT 50`
+    );
+    res.json(posts);
+  } catch (e) {
+    res.status(500).json({ message: "Error fetching posts" });
+  }
+});
+
+// --- CREATE POST ---
+app.post("/api/posts/create", authenticateToken, async (req, res) => {
+  const { content, image } = req.body;
+  const userId = req.user.userId;
+
+  if (!content && !image) {
+    return res.status(400).json({ message: "Post content or image required" });
+  }
+
+  try {
+    const [result] = await db.query(
+      `INSERT INTO posts (userId, content, image, likes) VALUES (?, ?, ?, 0)`,
+      [userId, content, image]
+    );
+
+    res.status(201).json({
+      message: "Post created successfully",
+      postId: result.insertId
+    });
+  } catch (e) {
+    res.status(500).json({ message: "Error creating post" });
+  }
+});
+
+// --- LIKE POST ---
+app.post("/api/posts/:postId/like", authenticateToken, async (req, res) => {
+  const postId = req.params.postId;
+
+  try {
+    const [post] = await db.query(
+      `SELECT likes FROM posts WHERE id=?`,
+      [postId]
+    );
+
+    if (post.length === 0) {
+      return res.status(404).json({ message: "Post not found" });
+    }
+
+    const newLikes = (post[0].likes || 0) + 1;
+
+    await db.query(
+      `UPDATE posts SET likes=? WHERE id=?`,
+      [newLikes, postId]
+    );
+
+    res.json({ message: "Post liked", likes: newLikes });
+  } catch (e) {
+    res.status(500).json({ message: "Error liking post" });
+  }
+});
+
+// --- GET POST COMMENTS ---
+app.get("/api/posts/:postId/comments", async (req, res) => {
+  const postId = req.params.postId;
+
+  try {
+    const [comments] = await db.query(
+      `SELECT pc.*, u.username, u.nickname, u.avatar FROM post_comments pc 
+       JOIN users u ON pc.userId = u.id 
+       WHERE pc.postId=? 
+       ORDER BY pc.createdAt DESC`,
+      [postId]
+    );
+
+    res.json(comments);
+  } catch (e) {
+    res.status(500).json({ message: "Error fetching comments" });
+  }
+});
+
+// --- CREATE COMMENT ---
+app.post("/api/posts/:postId/comments", authenticateToken, async (req, res) => {
+  const { content } = req.body;
+  const postId = req.params.postId;
+  const userId = req.user.userId;
+
+  if (!content || !content.trim()) {
+    return res.status(400).json({ message: "Comment content required" });
+  }
+
+  try {
+    const [result] = await db.query(
+      `INSERT INTO post_comments (postId, userId, content) VALUES (?, ?, ?)`,
+      [postId, userId, content]
+    );
+
+    res.status(201).json({
+      message: "Comment created",
+      commentId: result.insertId
+    });
+  } catch (e) {
+    res.status(500).json({ message: "Error creating comment" });
+  }
+});
+
+// --- GET STORIES ---
+app.get("/api/stories", async (req, res) => {
+  try {
+    const [stories] = await db.query(
+      `SELECT s.*, u.username, u.nickname, u.avatar FROM stories s 
+       JOIN users u ON s.userId = u.id 
+       WHERE s.expiresAt > NOW() OR s.expiresAt IS NULL 
+       ORDER BY s.createdAt DESC LIMIT 50`
+    );
+
+    res.json(stories);
+  } catch (e) {
+    res.status(500).json({ message: "Error fetching stories" });
+  }
+});
+
+// --- CREATE STORY ---
+app.post("/api/stories/create", authenticateToken, async (req, res) => {
+  const { image } = req.body;
+  const userId = req.user.userId;
+
+  if (!image) {
+    return res.status(400).json({ message: "Story image required" });
+  }
+
+  try {
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 24); // Expires in 24 hours
+
+    const [result] = await db.query(
+      `INSERT INTO stories (userId, image, expiresAt) VALUES (?, ?, ?)`,
+      [userId, image, expiresAt]
+    );
+
+    res.status(201).json({
+      message: "Story created",
+      storyId: result.insertId
+    });
+  } catch (e) {
+    res.status(500).json({ message: "Error creating story" });
+  }
+});
+
+// --- GET USER PROFILE ---
+app.get("/api/users/:userId", async (req, res) => {
+  const userId = req.params.userId;
+
+  try {
+    const [user] = await db.query(
+      `SELECT id, username, nickname, email, avatar, bio, location, work, education FROM users WHERE id=?`,
+      [userId]
+    );
+
+    if (user.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json(user[0]);
+  } catch (e) {
+    res.status(500).json({ message: "Error fetching user" });
+  }
+});
+
+// --- GET USER POSTS ---
+app.get("/api/users/:userId/posts", async (req, res) => {
+  const userId = req.params.userId;
+
+  try {
+    const [posts] = await db.query(
+      `SELECT p.* FROM posts p WHERE p.userId=? ORDER BY p.createdAt DESC LIMIT 20`,
+      [userId]
+    );
+
+    res.json(posts);
+  } catch (e) {
+    res.status(500).json({ message: "Error fetching user posts" });
+  }
+});
+
+// --- REACT TO POST (LIKE, LOVE, etc.) ---
+app.post("/api/posts/:postId/react", authenticateToken, async (req, res) => {
+  const { type } = req.body;
+  const postId = req.params.postId;
+  const userId = req.user.userId;
+
+  if (!['like','love','haha','wow','sad','angry'].includes(type)) {
+    return res.status(400).json({ message: "Invalid reaction type" });
+  }
+
+  try {
+    await db.query(
+      `INSERT INTO post_reactions (postId, userId, type) VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE type=?`,
+      [postId, userId, type, type]
+    );
+
+    res.json({ message: "Reaction added" });
+  } catch (e) {
+    res.status(500).json({ message: "Error adding reaction" });
+  }
+});
+
+// --- DELETE COMMENT ---
+app.delete("/api/comments/:commentId", authenticateToken, async (req, res) => {
+  const commentId = req.params.commentId;
+  const userId = req.user.userId;
+
+  try {
+    const [comment] = await db.query(
+      `SELECT userId FROM post_comments WHERE id=?`,
+      [commentId]
+    );
+
+    if (comment.length === 0) {
+      return res.status(404).json({ message: "Comment not found" });
+    }
+
+    if (comment[0].userId !== userId) {
+      return res.status(403).json({ message: "Unauthorized" });
+    }
+
+    await db.query(`DELETE FROM post_comments WHERE id=?`, [commentId]);
+
+    res.json({ message: "Comment deleted" });
+  } catch (e) {
+    res.status(500).json({ message: "Error deleting comment" });
+  }
+});
+
+// --- DELETE POST ---
+app.delete("/api/posts/:postId", authenticateToken, async (req, res) => {
+  const postId = req.params.postId;
+  const userId = req.user.userId;
+
+  try {
+    const [post] = await db.query(
+      `SELECT userId FROM posts WHERE id=?`,
+      [postId]
+    );
+
+    if (post.length === 0) {
+      return res.status(404).json({ message: "Post not found" });
+    }
+
+    if (post[0].userId !== userId) {
+      return res.status(403).json({ message: "Unauthorized" });
+    }
+
+    await db.query(`DELETE FROM posts WHERE id=?`, [postId]);
+
+    res.json({ message: "Post deleted" });
+  } catch (e) {
+    res.status(500).json({ message: "Error deleting post" });
+  }
+});
+
+// ===== END OF NEW API ENDPOINTS =====
 
 // --- GEMINI AI LOGIC WITH CONTEXT ---
 async function callGeminiAPI(prompt) {
