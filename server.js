@@ -17,16 +17,9 @@ import { CloudinaryStorage } from "multer-storage-cloudinary";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// --- 1. CẤU HÌNH & DEBUG ---
-// Log xem có key chưa (chỉ hiện 5 ký tự đầu để bảo mật)
-const rawKey = process.env.GEMINI_API_KEY;
-if (rawKey) {
-    console.log("🔑 Đã tìm thấy API Key: " + rawKey.substring(0, 5) + "...");
-} else {
-    console.error("❌ LỖI NGHIÊM TRỌNG: Không tìm thấy GEMINI_API_KEY trong biến môi trường!");
-}
-
-const GEMINI_API_KEY = rawKey ? rawKey.trim() : "";
+// --- 1. CẤU HÌNH API KEY (QUAN TRỌNG) ---
+// Tự động xóa khoảng trắng nếu bạn lỡ copy thừa
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.trim() : "";
 const JWT_SECRET = process.env.JWT_SECRET || "secret_key_nexus_2025";
 const AI_BOT_ID = 1;
 
@@ -95,7 +88,7 @@ app.post("/api/upload", upload.array("files", 5), (req, res) => {
   res.json(files);
 });
 
-// Auth & User APIs (Giữ nguyên)
+// (Giữ nguyên các API Auth/User cũ để tiết kiệm dòng)
 app.post("/api/send-otp", async (req, res) => {
   const { email, username } = req.body;
   try {
@@ -197,12 +190,18 @@ app.post("/api/groups/create", authenticateToken, async (req, res) => {
     } catch (e) { await conn.rollback(); res.status(500).json({ message: "Error" }); } finally { conn.release(); }
 });
 
-// ================= SOCKET.IO & AI LOGIC (DEBUG MODE) =================
+// ================= SOCKET.IO & AI LOGIC (VERSION FIX) =================
 
-// Hàm gọi Google API (CÓ LOG LỖI CHI TIẾT)
+// Hàm gọi Google API: Tự động chọn API Version
 async function tryCallGemini(modelName, text) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
-    console.log(`🤖 Đang thử kết nối model: ${modelName}...`);
+    // QUAN TRỌNG: gemini-pro dùng bản v1, gemini-1.5-flash dùng bản v1beta
+    let apiVersion = "v1beta"; 
+    if (modelName === "gemini-pro") {
+        apiVersion = "v1";
+    }
+
+    const url = `https://generativelanguage.googleapis.com/${apiVersion}/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
+    console.log(`🤖 Đang thử model: ${modelName} (API ${apiVersion})...`);
     
     const response = await fetch(url, {
         method: "POST",
@@ -211,49 +210,59 @@ async function tryCallGemini(modelName, text) {
     });
 
     if (!response.ok) {
-        // --- IN LỖI CHI TIẾT RA LOG RENDER ---
-        const errorBody = await response.text(); 
-        console.error(`❌ LỖI TỪ GOOGLE (${modelName}):`, errorBody);
-        // ---------------------------------------
-        return null;
+        if (response.status === 404) {
+            console.warn(`⚠️ Model ${modelName} không tồn tại trên ${apiVersion}.`);
+            return null; // Trả về null để thử model tiếp theo
+        }
+        const errText = await response.text();
+        throw new Error(`Google API Error: ${response.status} - ${errText}`);
     }
     return await response.json();
 }
 
 async function handleAIChat(msg, uid, socket) {
   if (!GEMINI_API_KEY) {
-    console.error("❌ Lỗi: Chưa có API Key.");
-    return socket.emit("newMessage", { senderId: AI_BOT_ID, content: "Chưa cấu hình API Key trên Server.", createdAt: new Date() });
+    return socket.emit("newMessage", { senderId: AI_BOT_ID, content: "Chưa cấu hình API Key.", createdAt: new Date() });
   }
 
-  const modelsToTry = ["gemini-1.5-flash", "gemini-pro", "gemini-1.5-pro-latest"];
-  let data = null;
+  // DANH SÁCH MODEL (Thứ tự ưu tiên)
+  const modelsToTry = [
+      "gemini-1.5-flash", // Thử bản Flash mới nhất (v1beta)
+      "gemini-pro",       // Nếu lỗi, thử bản Pro cũ (v1) - Rất ổn định
+      "gemini-1.5-pro"    // Thử bản Pro mới (v1beta)
+  ];
+
+  let reply = "Xin lỗi, tôi không thể trả lời lúc này.";
+  let success = false;
 
   for (const model of modelsToTry) {
       try {
-          data = await tryCallGemini(model, msg);
-          if (data) {
-              console.log(`✅ Kết nối thành công với: ${model}`);
-              break; 
+          const data = await tryCallGemini(model, msg);
+          if (data && data.candidates && data.candidates.length > 0) {
+              reply = data.candidates[0].content.parts[0].text;
+              console.log(`✅ Thành công với model: ${model}`);
+              success = true;
+              break; // Thoát vòng lặp ngay khi thành công
           }
       } catch (err) {
-          console.error(`⚠️ Lỗi ngoại lệ khi gọi ${model}:`, err.message);
+          console.error(`❌ Lỗi khi gọi ${model}:`, err.message);
       }
   }
 
-  if (data && data.candidates && data.candidates.length > 0) {
-      const reply = data.candidates[0].content.parts[0].text;
-      const [r] = await db.query("INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)", [AI_BOT_ID, uid, reply]);
-      socket.emit("newMessage", {
-        id: r.insertId,
-        senderId: AI_BOT_ID,
-        content: reply,
-        createdAt: new Date(),
-      });
-  } else {
-      console.error("❌ Tất cả các model đều thất bại.");
-      socket.emit("newMessage", { senderId: AI_BOT_ID, content: "Tất cả các kết nối AI đều thất bại. Vui lòng kiểm tra LOG trên Render để xem chi tiết lỗi.", createdAt: new Date() });
+  if (!success) {
+      reply = "Hệ thống AI đang quá tải hoặc API Key chưa được kích hoạt. Vui lòng thử lại sau.";
   }
+
+  // Lưu vào DB
+  const [r] = await db.query("INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)", [AI_BOT_ID, uid, reply]);
+  
+  // Gửi lại Client
+  socket.emit("newMessage", {
+    id: r.insertId,
+    senderId: AI_BOT_ID,
+    content: reply,
+    createdAt: new Date(),
+  });
 }
 
 io.use((socket, next) => {
@@ -280,6 +289,7 @@ io.on("connection", async (socket) => {
     const { recipientId, content, ttl } = data;
     if (!recipientId || !content) return;
 
+    // AI CHAT
     if (recipientId === AI_BOT_ID) {
       await db.query("INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)", [userId, AI_BOT_ID, content]);
       socket.emit("newMessage", { senderId: userId, content: content, createdAt: new Date() });
@@ -287,6 +297,7 @@ io.on("connection", async (socket) => {
       return;
     }
 
+    // USER CHAT
     const [r] = await db.query("INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)", [userId, recipientId, content]);
     const msg = { id: r.insertId, senderId: userId, content, createdAt: new Date(), ttl };
     if (onlineUsers[recipientId]) io.to(onlineUsers[recipientId].socketId).emit("newMessage", msg);
@@ -299,7 +310,7 @@ io.on("connection", async (socket) => {
     socket.emit("conversationDeleted", { partnerId: recipientId });
     if (onlineUsers[recipientId]) io.to(onlineUsers[recipientId].socketId).emit("conversationDeleted", { partnerId: userId });
   });
-
+  
   socket.on("deleteMessage", async ({ messageId, recipientId }) => {
     await db.query("DELETE FROM messages WHERE id = ? AND senderId = ?", [messageId, userId]);
     socket.emit("messageDeleted", { messageId });
@@ -318,9 +329,9 @@ io.on("connection", async (socket) => {
   socket.on("callOffer", async (d) => {
     const rec = onlineUsers[d.recipientId];
     if (rec) {
-      const [u] = await db.query("SELECT username, nickname, avatar FROM users WHERE id=?", [userId]);
-      const avt = u[0].avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(u[0].nickname)}`;
-      io.to(rec.socketId).emit("callOffer", { ...d, senderId: userId, senderName: u[0].nickname || u[0].username, senderAvatar: avt });
+        const [u] = await db.query("SELECT username, nickname, avatar FROM users WHERE id=?", [userId]);
+        const avt = u[0].avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(u[0].nickname)}`;
+        io.to(rec.socketId).emit("callOffer", { ...d, senderId: userId, senderName: u[0].nickname || u[0].username, senderAvatar: avt });
     }
   });
   socket.on("callAnswer", (d) => onlineUsers[d.recipientId] && io.to(onlineUsers[d.recipientId].socketId).emit("callAnswer", { ...d, senderId: userId }));
