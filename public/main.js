@@ -35,19 +35,26 @@ document.addEventListener("DOMContentLoaded", () => {
     window.location.href = "/index.html";
   });
 
-  // 4. LOAD THEME & BACKGROUND (NÂNG CẤP XỬ LÝ LINK ẢNH)
+  // 4. LOAD THEME & BACKGROUND (SỬA LỖI BASE64 TẠI ĐÂY)
   document.body.setAttribute("data-theme", localStorage.getItem("theme") || "dark");
   
   // Hàm đổi màu nền THÔNG MINH
   function applyBg(val) {
     if (!val) return;
-    val = val.trim(); // Quan trọng: Xóa khoảng trắng thừa khi copy paste
+    val = val.trim(); // Xóa khoảng trắng thừa
 
-    // Kiểm tra xem là Link ảnh (http/https) hay Mã màu/Gradient
-    if (val.startsWith("http") || val.startsWith("https") || val.startsWith("url")) {
+    // Kiểm tra: Link HTTP, Link Base64 (data:image...), hoặc URL CSS
+    const isImage = 
+        val.startsWith("http") || 
+        val.startsWith("https") || 
+        val.startsWith("data:image") ||  // <-- Hỗ trợ ảnh Base64
+        val.startsWith("url");
+
+    if (isImage) {
       chatContentContainer.style.background = "none"; 
-      // Tự động thêm url('') nếu người dùng chỉ dán link trần
+      // Nếu chưa có url('...') thì thêm vào
       const bgValue = val.startsWith("url") ? val : `url('${val}')`;
+      
       chatContentContainer.style.backgroundImage = bgValue;
       chatContentContainer.style.backgroundSize = "cover";
       chatContentContainer.style.backgroundPosition = "center";
@@ -115,7 +122,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     window.socket.emit("loadPrivateHistory", { recipientId: user.id });
 
-    // Hiện các nút chức năng
+    // HIỆN CÁC NÚT BỊ MẤT
     const delBtn = document.getElementById("delete-chat-btn");
     if(callBtn) callBtn.style.display = isAI ? "none" : "flex"; 
     if(videoBtn) videoBtn.style.display = isAI ? "none" : "flex"; 
@@ -147,7 +154,7 @@ document.addEventListener("DOMContentLoaded", () => {
     div.id = `msg-${msg.id || Date.now()}`;
     div.className = `message ${msg.senderId === window.myUserId ? "user" : "other"}`;
     
-    // Tự hủy tin nhắn
+    // Tự hủy tin nhắn (Client side removal)
     if (msg.ttl) {
         div.classList.add("secret");
         const createdAt = msg.createdAt ? new Date(msg.createdAt).getTime() : Date.now();
@@ -294,7 +301,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.addEventListener("click", (e) => { if(!emojiPicker.contains(e.target) && e.target !== emojiBtn) emojiPicker.classList.add("hidden"); });
   }
 
-  // 14. ĐỔI MÀU NỀN & POPUP
+  // 14. ĐỔI MÀU NỀN (MODAL & EVENTS)
   const setBtn = document.getElementById("chat-settings-btn");
   const closeBgBtn = document.getElementById("close-bg-modal");
   const saveBgBtn = document.getElementById("save-bg-btn");
@@ -315,17 +322,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Click Áp dụng Link ảnh
   if(saveBgBtn) saveBgBtn.addEventListener("click", () => {
-      const url = bgInput.value.trim(); // Cắt khoảng trắng
+      const url = bgInput.value.trim(); 
       if(url) { 
           applyBg(url); 
-          bgModal.classList.add("hidden"); // Tắt popup
-          bgInput.value = ""; // Xóa ô nhập
+          bgModal.classList.add("hidden"); 
+          bgInput.value = ""; 
       } else {
-          alert("Vui lòng nhập Link ảnh hợp lệ!");
+          alert("Vui lòng nhập Link ảnh!");
       }
   });
 
-  // 15. TIM BAY & DELETE MSG
+  // 15. TIM BAY
   if(heartBtn) heartBtn.addEventListener("click", () => {
     if (!window.currentChatContext.id) return;
     window.socket.emit("sendHeart", { recipientId: window.currentChatContext.id });
