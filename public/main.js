@@ -8,11 +8,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const themeToggle = document.getElementById("theme-toggle");
   const currentTheme = localStorage.getItem("theme") || "dark";
   document.body.setAttribute("data-theme", currentTheme);
-  if(themeToggle) themeToggle.addEventListener("click", () => {
-      const newTheme = document.body.getAttribute("data-theme") === "dark" ? "light" : "dark";
-      document.body.setAttribute("data-theme", newTheme);
-      localStorage.setItem("theme", newTheme);
-  });
+  
+  if(themeToggle) {
+      themeToggle.addEventListener("click", () => {
+          const newTheme = document.body.getAttribute("data-theme") === "dark" ? "light" : "dark";
+          document.body.setAttribute("data-theme", newTheme);
+          localStorage.setItem("theme", newTheme);
+      });
+  }
 
   // 2. INIT
   window.socket = io({ auth: { token } });
@@ -24,7 +27,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const messagesContainer = document.getElementById("messages");
   const messageInput = document.getElementById("message-input");
   const userListDiv = document.getElementById("user-list");
-  const headerAvatar = document.querySelector(".chat-header .avatar-circle");
+  const headerAvatarContainer = document.querySelector(".chat-header .avatar-circle");
   const chatContent = document.getElementById("chat-content-container");
 
   // Mobile
@@ -84,11 +87,11 @@ document.addEventListener("DOMContentLoaded", () => {
     if(title) title.textContent = window.currentChatContext.name;
     if(status) status.textContent = user.userId === 0 ? "Trợ lý AI" : (user.online ? "Đang hoạt động" : "Ngoại tuyến");
     
-    if(headerAvatar) {
-        headerAvatar.innerHTML = "";
+    if(headerAvatarContainer) {
+        headerAvatarContainer.innerHTML = "";
         const avt = getAvatar(user);
-        if(avt.startsWith("<i")) { headerAvatar.className="avatar-circle ai-icon-wrapper"; headerAvatar.innerHTML = avt; }
-        else { headerAvatar.className="avatar-circle"; headerAvatar.innerHTML = `<img src="${avt}" onerror="this.src='https://ui-avatars.com/api/?name=C'">`; }
+        if(avt.startsWith("<i")) { headerAvatarContainer.className="avatar-circle ai-icon-wrapper"; headerAvatarContainer.innerHTML = avt; }
+        else { headerAvatarContainer.className="avatar-circle"; headerAvatarContainer.innerHTML = `<img src="${avt}" onerror="this.src='https://ui-avatars.com/api/?name=C'">`; }
     }
 
     if(messagesContainer) messagesContainer.innerHTML = "";
@@ -162,11 +165,12 @@ document.addEventListener("DOMContentLoaded", () => {
       });
   }
 
-  // 5. EMOJI (FIX LOGIC LỖI)
+  // 5. EMOJI MANUAL (FIX ERROR)
   const emojiBtn = document.getElementById("emoji-trigger");
   const emojiPicker = document.getElementById("emoji-picker");
   if(emojiBtn && emojiPicker) {
       emojiBtn.addEventListener("click", (e) => { e.stopPropagation(); emojiPicker.classList.toggle("hidden"); });
+      // Lắng nghe click trên các span emoji
       document.querySelectorAll(".emoji-grid span").forEach(s => {
           s.addEventListener("click", () => {
               if(messageInput) { messageInput.value += s.innerText; messageInput.focus(); }
@@ -273,7 +277,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const url = document.getElementById("bg-url-input").value;
       if(url) { chatContent.style.background = "none"; chatContent.style.backgroundImage = `url('${url}')`; localStorage.setItem("chatBg", url); document.getElementById("bg-modal").classList.add("hidden"); }
   });
-
+  
   const attachBtn = document.getElementById("attach-btn");
   if (attachBtn) attachBtn.addEventListener("click", () => { if (window.openFileModal) window.openFileModal(); });
 });
