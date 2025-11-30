@@ -7,6 +7,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import db from "./db.js";
 import path from "path";
+import fs from "fs"; // QUAN TRỌNG: Để tạo thư mục uploads
 import { fileURLToPath } from "url";
 import multer from "multer";
 import nodemailer from "nodemailer";
@@ -17,12 +18,12 @@ import { CloudinaryStorage } from "multer-storage-cloudinary";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// --- CẤU HÌNH CƠ BẢN ---
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const JWT_SECRET = process.env.JWT_SECRET || "secret_key_nexus_2025";
+const AI_BOT_ID = 1; // ID của AI trong Database là 1
 
-// QUAN TRỌNG: ID CỦA AI TRONG DATABASE CỦA BẠN LÀ 1
-const AI_BOT_ID = 1; 
-
+// --- KHỞI TẠO AI ---
 let aiModel = null;
 if (GEMINI_API_KEY) {
   try {
@@ -30,7 +31,7 @@ if (GEMINI_API_KEY) {
     aiModel = genAI.getGenerativeModel({ model: "gemini-pro" });
     console.log("✅ AI Model initialized");
   } catch (err) {
-    console.error("AI Error:", err.message);
+    console.error("⚠️ AI Error:", err.message);
   }
 }
 
@@ -45,30 +46,55 @@ const onlineUsers = {};
 app.use(express.static("public"));
 app.use(express.json());
 
-// Cloudinary
-if (process.env.CLOUDINARY_CLOUD_NAME) {
+// --- XỬ LÝ UPLOAD (FIX LỖI 500) ---
+// 1. Tạo thư mục uploads nếu chưa có
+const uploadDir = path.join(__dirname, "public/uploads");
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+// 2. Cấu hình Multer (Tự động chọn Cloudinary hoặc Local)
+let upload;
+if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY) {
+  console.log("☁️  Storage: Cloudinary");
   cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
     api_secret: process.env.CLOUDINARY_API_SECRET,
   });
+  const storage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+      folder: "nexus_uploads",
+      resource_type: "auto",
+      allowed_formats: ["jpg", "png", "jpeg", "mp3", "wav", "mp4", "webm"],
+    },
+  });
+  upload = multer({ storage });
+} else {
+  console.log("💾 Storage: Local Disk (public/uploads)");
+  const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+      cb(null, uploadDir);
+    },
+    filename: function (req, file, cb) {
+      // Đặt tên file unique để tránh trùng
+      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+      const ext = path.extname(file.originalname) || ".webm"; // Mặc định webm cho voice nếu thiếu đuôi
+      cb(null, uniqueSuffix + ext);
+    },
+  });
+  upload = multer({ storage });
 }
-const storage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: {
-    folder: "nexus_uploads",
-    resource_type: "auto",
-    allowed_formats: ["jpg", "png", "mp3", "wav", "mp4"],
-  },
-});
-const upload = multer({ storage });
 
+// --- EMAIL SETUP ---
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
 });
 const otpStore = new Map();
 
+// --- MIDDLEWARE AUTH ---
 const authenticateToken = (req, res, next) => {
   const token = req.headers["authorization"]?.split(" ")[1];
   if (!token) return res.sendStatus(401);
@@ -79,25 +105,44 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-// ... (Giữ nguyên các API Register, Login, OTP, Profile ...) 
-// ... Phần API không cần thay đổi gì, tôi rút gọn để tập trung vào Socket ...
+// ================= API ROUTES =================
 
+// 1. API Upload (Đã fix đường dẫn file)
+app.post("/api/upload", upload.array("files", 5), (req, res) => {
+  if (!req.files || req.files.length === 0) return res.status(400).json({ message: "No file uploaded" });
+
+  const files = req.files.map((f) => {
+    // Nếu là Local Storage, f.path là đường dẫn tuyệt đối -> Cần chuyển thành URL tương đối
+    let url = f.path;
+    if (!f.path.startsWith("http")) {
+      url = `/uploads/${f.filename}`;
+    }
+    return {
+      type: f.mimetype.includes("image") ? "image" : "audio",
+      name: f.originalname,
+      url: url,
+    };
+  });
+  res.json(files);
+});
+
+// 2. Auth APIs
 app.post("/api/send-otp", async (req, res) => {
   const { email, username } = req.body;
   try {
     const [exists] = await db.query("SELECT id FROM users WHERE email = ? OR username = ?", [email, username]);
-    if (exists.length > 0) return res.status(400).json({ message: "Đã tồn tại!" });
+    if (exists.length > 0) return res.status(400).json({ message: "Email hoặc Username đã tồn tại!" });
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     otpStore.set(email, { otp, expires: Date.now() + 300000 });
-    await transporter.sendMail({ from: "Nexus", to: email, subject: "OTP", html: `<h3>OTP: <b>${otp}</b></h3>` });
+    await transporter.sendMail({ from: "Nexus", to: email, subject: "Mã xác thực OTP", html: `<h3>Mã OTP của bạn là: <b>${otp}</b></h3>` });
     res.json({ message: "OK" });
-  } catch (e) { res.status(500).json({ message: "Lỗi mail" }); }
+  } catch (e) { console.error(e); res.status(500).json({ message: "Lỗi gửi mail" }); }
 });
 
 app.post("/api/verify-otp", (req, res) => {
   const { email, otp } = req.body;
   const data = otpStore.get(email);
-  if (!data || Date.now() > data.expires || data.otp !== otp) return res.status(400).json({ message: "Sai OTP" });
+  if (!data || Date.now() > data.expires || data.otp !== otp) return res.status(400).json({ message: "OTP không đúng hoặc đã hết hạn" });
   res.json({ message: "OK" });
 });
 
@@ -108,17 +153,17 @@ app.post("/api/complete-register", async (req, res) => {
     await db.query("INSERT INTO users (username, passwordHash, email, nickname, avatar) VALUES (?, ?, ?, ?, ?)", [username, hash, email, nickname, avatar]);
     otpStore.delete(email);
     res.status(201).json({ message: "OK" });
-  } catch (e) { res.status(500).json({ message: "Lỗi DB" }); }
+  } catch (e) { res.status(500).json({ message: "Lỗi Database" }); }
 });
 
 app.post("/api/login", async (req, res) => {
   const { username, password } = req.body;
   try {
     const [rows] = await db.query("SELECT * FROM users WHERE username = ?", [username]);
-    if (!rows[0] || !(await bcrypt.compare(password, rows[0].passwordHash))) return res.status(400).json({ message: "Sai thông tin" });
+    if (!rows[0] || !(await bcrypt.compare(password, rows[0].passwordHash))) return res.status(400).json({ message: "Sai tên đăng nhập hoặc mật khẩu" });
     const token = jwt.sign({ userId: rows[0].id, username: rows[0].username }, JWT_SECRET, { expiresIn: "7d" });
     res.json({ message: "OK", token });
-  } catch (e) { res.status(500).json({ message: "Error" }); }
+  } catch (e) { res.status(500).json({ message: "Lỗi Server" }); }
 });
 
 app.get("/api/me", authenticateToken, async (req, res) => {
@@ -126,6 +171,7 @@ app.get("/api/me", authenticateToken, async (req, res) => {
   res.json(r[0]);
 });
 
+// 3. User & Friends APIs
 app.get("/api/users/search", authenticateToken, async (req, res) => {
   const query = req.query.q;
   if (!query) return res.json([]);
@@ -135,27 +181,11 @@ app.get("/api/users/search", authenticateToken, async (req, res) => {
   } catch (e) { res.status(500).json({ message: "Error" }); }
 });
 
-app.post("/api/profile/update", authenticateToken, async (req, res) => {
-  const { nickname, avatar, bio, location, work, education } = req.body;
-  try {
-    await db.query(`UPDATE users SET nickname=?, avatar=?, bio=?, location=?, work=?, education=? WHERE id=?`, [nickname, avatar, bio, location, work, education, req.user.userId]);
-    res.json({ message: "OK" });
-  } catch (e) { res.status(500).json({ message: "Error" }); }
-});
-
 app.get("/api/users/suggestions", authenticateToken, async (req, res) => {
   try {
+    // Gợi ý user chưa kết bạn
     const [u] = await db.query(`SELECT id, username, nickname, avatar FROM users WHERE id != ? AND id != 1 AND id NOT IN (SELECT receiverId FROM friend_requests WHERE senderId = ? UNION SELECT senderId FROM friend_requests WHERE receiverId = ?) LIMIT 20`, [req.user.userId, req.user.userId, req.user.userId]);
     res.json(u);
-  } catch (e) { res.status(500).json({ message: "Error" }); }
-});
-
-app.get("/api/users/:id", authenticateToken, async (req, res) => {
-  try {
-    const [rows] = await db.query("SELECT id, username, nickname, avatar, bio, location, work, education FROM users WHERE id = ?", [req.params.id]);
-    if (rows.length === 0) return res.status(404).json({ message: "Not found" });
-    const [posts] = await db.query(`SELECT * FROM posts WHERE userId = ? ORDER BY createdAt DESC`, [req.params.id]);
-    res.json({ user: rows[0], posts: posts });
   } catch (e) { res.status(500).json({ message: "Error" }); }
 });
 
@@ -166,9 +196,9 @@ app.get("/api/friends", authenticateToken, async (req, res) => {
   } catch (e) { res.status(500).json({ message: "Error" }); }
 });
 
-app.get("/api/friends/pending", authenticateToken, async (req, res) => {
+app.get("/api/notifications", authenticateToken, async (req, res) => {
   try {
-    const [reqs] = await db.query(`SELECT fr.id as requestId, u.id as userId, u.username, u.nickname, u.avatar FROM friend_requests fr JOIN users u ON fr.senderId = u.id WHERE fr.receiverId = ? AND fr.status = 'pending'`, [req.user.userId]);
+    const [reqs] = await db.query(`SELECT fr.id, u.username, u.nickname, u.avatar, fr.createdAt, 'request' as type FROM friend_requests fr JOIN users u ON fr.senderId = u.id WHERE fr.receiverId = ? AND fr.status = 'pending'`, [req.user.userId]);
     res.json(reqs);
   } catch (e) { res.status(500).json({ message: "Error" }); }
 });
@@ -177,7 +207,7 @@ app.post("/api/friends/request", authenticateToken, async (req, res) => {
   try {
     await db.query("INSERT INTO friend_requests (senderId, receiverId) VALUES (?, ?)", [req.user.userId, req.body.receiverId]);
     res.json({ message: "OK" });
-  } catch (e) { res.status(500).json({ message: "Duplicate" }); }
+  } catch (e) { res.status(500).json({ message: "Đã gửi lời mời rồi" }); }
 });
 
 app.post("/api/friends/accept", authenticateToken, async (req, res) => {
@@ -187,48 +217,7 @@ app.post("/api/friends/accept", authenticateToken, async (req, res) => {
   } catch (e) { res.status(500).json({ message: "Error" }); }
 });
 
-app.get("/api/posts", authenticateToken, async (req, res) => {
-  try {
-    const [posts] = await db.query(`SELECT p.*, u.username, u.nickname, u.avatar FROM posts p JOIN users u ON p.userId = u.id ORDER BY p.createdAt DESC LIMIT 50`);
-    res.json(posts);
-  } catch (e) { res.status(500).json({ message: "Error" }); }
-});
-
-app.post("/api/posts", authenticateToken, async (req, res) => {
-  try {
-    await db.query("INSERT INTO posts (userId, content, image) VALUES (?, ?, ?)", [req.user.userId, req.body.content, req.body.image]);
-    res.json({ message: "Posted" });
-  } catch (e) { res.status(500).json({ message: "Error" }); }
-});
-
-app.get("/api/stories", authenticateToken, async (req, res) => {
-  try {
-    const [s] = await db.query("SELECT s.*, u.username, u.nickname, u.avatar FROM stories s JOIN users u ON s.userId = u.id WHERE s.createdAt >= NOW() - INTERVAL 1 DAY ORDER BY s.createdAt DESC");
-    res.json(s);
-  } catch (e) { res.status(500).json({ message: "Error" }); }
-});
-
-app.post("/api/stories", authenticateToken, async (req, res) => {
-  try {
-    await db.query("INSERT INTO stories (userId, image, expiresAt) VALUES (?, ?, ?)", [req.user.userId, req.body.image, new Date(Date.now() + 86400000)]);
-    res.json({ message: "OK" });
-  } catch (e) { res.status(500).json({ message: "Error" }); }
-});
-
-app.post("/api/upload", upload.array("files", 5), (req, res) => {
-  if (!req.files) return res.status(400).json({ message: "No file" });
-  const files = req.files.map((f) => ({ type: f.mimetype.includes("image") ? "image" : "audio", name: f.originalname, url: f.path }));
-  res.json(files);
-});
-
-app.get("/api/notifications", authenticateToken, async (req, res) => {
-  try {
-    const uid = req.user.userId;
-    const [reqs] = await db.query(`SELECT fr.id, u.username, u.nickname, u.avatar, fr.createdAt, 'request' as type FROM friend_requests fr JOIN users u ON fr.senderId = u.id WHERE fr.receiverId = ? AND fr.status = 'pending'`, [uid]);
-    res.json(reqs);
-  } catch (e) { res.status(500).json({ message: "Error" }); }
-});
-
+// 4. Group API
 app.post("/api/groups/create", authenticateToken, async (req, res) => {
   const { name, members } = req.body;
   const creatorId = req.user.userId;
@@ -240,6 +229,8 @@ app.post("/api/groups/create", authenticateToken, async (req, res) => {
     const values = members.map((uid) => [g.insertId, uid]);
     if (values.length > 0) await conn.query("INSERT INTO group_members (groupId, userId) VALUES ?", [values]);
     await conn.commit();
+    
+    // Notify online users
     const [gInfo] = await db.query("SELECT * FROM groups WHERE id=?", [g.insertId]);
     members.forEach((uid) => {
       if (onlineUsers[uid]) {
@@ -252,14 +243,17 @@ app.post("/api/groups/create", authenticateToken, async (req, res) => {
   } catch (e) { await conn.rollback(); res.status(500).json({ message: "Error" }); } finally { conn.release(); }
 });
 
-// --- SOCKET LOGIC ---
+// ================= SOCKET.IO LOGIC =================
+
+// Helper: Xử lý chat AI
 async function handleAIChat(msg, uid, socket) {
   if (!aiModel)
-    return socket.emit("newMessage", { senderId: AI_BOT_ID, content: "AI chưa sẵn sàng.", createdAt: new Date() });
+    return socket.emit("newMessage", { senderId: AI_BOT_ID, content: "Hệ thống AI đang bảo trì hoặc chưa cấu hình API Key.", createdAt: new Date() });
+  
   try {
     const result = await aiModel.generateContent(msg);
     const reply = result.response.text();
-    // SỬA: INSERT với AI_BOT_ID (1) thay vì 0
+    // Lưu tin nhắn AI vào DB (ID = 1)
     const [r] = await db.query("INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)", [AI_BOT_ID, uid, reply]);
     socket.emit("newMessage", {
       id: r.insertId,
@@ -268,10 +262,11 @@ async function handleAIChat(msg, uid, socket) {
       createdAt: new Date(),
     });
   } catch (e) {
-    socket.emit("newMessage", { senderId: AI_BOT_ID, content: "AI bận.", createdAt: new Date() });
+    socket.emit("newMessage", { senderId: AI_BOT_ID, content: "AI đang bận, vui lòng thử lại sau.", createdAt: new Date() });
   }
 }
 
+// Middleware Socket Auth
 io.use((socket, next) => {
   const token = socket.handshake.auth.token;
   jwt.verify(token, JWT_SECRET, (err, user) => {
@@ -283,38 +278,37 @@ io.use((socket, next) => {
 
 io.on("connection", async (socket) => {
   const { userId } = socket.user;
+  // Lưu user vào map onlineUsers
   onlineUsers[userId] = { socketId: socket.id, username: socket.user.username };
 
+  // Gửi danh sách user online cho tất cả
   const sendUserList = async () => {
     const [users] = await db.query("SELECT id, username, nickname, avatar FROM users");
     const list = users.map((u) => ({
       ...u,
-      online: !!onlineUsers[u.id] || u.id === AI_BOT_ID, // Sửa: Check AI ID 1
+      online: !!onlineUsers[u.id] || u.id === AI_BOT_ID, // AI luôn online
     }));
     io.emit("userList", list);
   };
   await sendUserList();
 
-  // --- CHAT & SECRET ---
+  // 1. Private Message
   socket.on("privateMessage", async (data) => {
-    const content = data.content;
-    const recipientId = data.recipientId;
-    const ttl = data.ttl;
+    const { recipientId, content, ttl } = data;
+    if (!recipientId || !content) return;
 
-    if (recipientId === undefined || recipientId === null || !content) return;
-
-    // Chat với AI (ID 1)
+    // Chat với AI
     if (recipientId === AI_BOT_ID) {
+      // Lưu câu hỏi của user
       await db.query("INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)", [userId, AI_BOT_ID, content]);
-      socket.emit("newMessage", {
-        senderId: userId,
-        content: content,
-        createdAt: new Date(),
-      });
+      // Phản hồi ngay lập tức để hiện trên UI
+      socket.emit("newMessage", { senderId: userId, content: content, createdAt: new Date() });
+      // Gọi AI xử lý
       await handleAIChat(content, userId, socket);
       return;
     }
 
+    // Chat người với người
     const [r] = await db.query("INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)", [userId, recipientId, content]);
     const msg = {
       id: r.insertId,
@@ -324,14 +318,28 @@ io.on("connection", async (socket) => {
       ttl: ttl,
     };
 
-    if (onlineUsers[recipientId]) io.to(onlineUsers[recipientId].socketId).emit("newMessage", msg);
+    // Gửi cho người nhận nếu online
+    if (onlineUsers[recipientId]) {
+        io.to(onlineUsers[recipientId].socketId).emit("newMessage", msg);
+    }
+    // Gửi lại cho người gửi (để hiện lên UI)
     socket.emit("newMessage", msg);
 
+    // Xử lý tin nhắn tự hủy (Secret Mode)
     if (ttl && ttl > 0) {
-      setTimeout(async () => { await db.query("DELETE FROM messages WHERE id = ?", [r.insertId]); }, ttl);
+      setTimeout(async () => {
+        await db.query("DELETE FROM messages WHERE id = ?", [r.insertId]);
+      }, ttl);
     }
   });
 
+  // 2. Load History
+  socket.on("loadPrivateHistory", async ({ recipientId }) => {
+    const [msgs] = await db.query("SELECT * FROM messages WHERE (senderId=? AND recipientId=?) OR (senderId=? AND recipientId=?) ORDER BY createdAt ASC", [userId, recipientId, recipientId, userId]);
+    socket.emit("privateHistory", { recipientId, messages: msgs });
+  });
+
+  // 3. Delete Conversation
   socket.on("deleteConversation", async ({ recipientId }) => {
     await db.query("DELETE FROM messages WHERE (senderId=? AND recipientId=?) OR (senderId=? AND recipientId=?)", [userId, recipientId, recipientId, userId]);
     socket.emit("conversationDeleted", { partnerId: recipientId });
@@ -340,6 +348,7 @@ io.on("connection", async (socket) => {
     }
   });
 
+  // 4. Delete Single Message
   socket.on("deleteMessage", async ({ messageId, recipientId }) => {
     await db.query("DELETE FROM messages WHERE id = ? AND senderId = ?", [messageId, userId]);
     socket.emit("messageDeleted", { messageId });
@@ -348,37 +357,25 @@ io.on("connection", async (socket) => {
     }
   });
 
-  socket.on("loadPrivateHistory", async ({ recipientId }) => {
-    const [msgs] = await db.query("SELECT * FROM messages WHERE (senderId=? AND recipientId=?) OR (senderId=? AND recipientId=?) ORDER BY createdAt ASC", [userId, recipientId, recipientId, userId]);
-    socket.emit("privateHistory", { recipientId, messages: msgs });
-  });
-
-  // --- HEART & CALL ---
+  // 5. Heart & Call Signals
   socket.on("sendHeart", ({ recipientId }) => {
-    if (onlineUsers[recipientId]) {
-      io.to(onlineUsers[recipientId].socketId).emit("heartAnimation");
-    }
+    if (onlineUsers[recipientId]) io.to(onlineUsers[recipientId].socketId).emit("heartAnimation");
   });
 
   socket.on("callOffer", async (d) => {
-    if (!d.recipientId && d.recipientId !== 0) return;
-    const rec = onlineUsers[d.recipientId];
-    if (rec) {
-      const [u] = await db.query("SELECT username, nickname, avatar FROM users WHERE id=?", [userId]);
-      let avt = u[0].avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(u[0].nickname)}`;
-      io.to(rec.socketId).emit("callOffer", { ...d, senderId: userId, senderName: u[0].nickname || u[0].username, senderAvatar: avt });
-    } else {
-      const c = JSON.stringify({ type: "system", text: "📞 Cuộc gọi nhỡ" });
-      await db.query("INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)", [userId, d.recipientId, c]);
-      socket.emit("userOffline", { userId: d.recipientId });
-    }
+      const rec = onlineUsers[d.recipientId];
+      if (rec) {
+        const [u] = await db.query("SELECT username, nickname, avatar FROM users WHERE id=?", [userId]);
+        const avt = u[0].avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(u[0].nickname)}`;
+        io.to(rec.socketId).emit("callOffer", { ...d, senderId: userId, senderName: u[0].nickname || u[0].username, senderAvatar: avt });
+      }
   });
-
   socket.on("callAnswer", (d) => onlineUsers[d.recipientId] && io.to(onlineUsers[d.recipientId].socketId).emit("callAnswer", { ...d, senderId: userId }));
   socket.on("sendICE", (d) => onlineUsers[d.recipientId] && io.to(onlineUsers[d.recipientId].socketId).emit("receiveICE", { ...d, senderId: userId }));
   socket.on("callEnd", (d) => onlineUsers[d.recipientId] && io.to(onlineUsers[d.recipientId].socketId).emit("callEnd"));
-  socket.on("callReject", (d) => onlineUsers[d.callerId] && io.to(onlineUsers[d.callerId].socketId).emit("callReject", { senderId: userId, reason: d.reason }));
+  socket.on("callReject", (d) => onlineUsers[d.callerId] && io.to(onlineUsers[d.callerId].socketId).emit("callReject", { senderId: userId }));
 
+  // Disconnect
   socket.on("disconnect", () => {
     delete onlineUsers[userId];
     sendUserList();
@@ -387,4 +384,4 @@ io.on("connection", async (socket) => {
 
 app.get("*", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`✅ Server running`));
+server.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
