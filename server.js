@@ -87,6 +87,42 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
+// --- GEMINI AI LOGIC WITH CONTEXT (FIX 1: Thêm callGeminiAPI) ---
+async function callGeminiAPI(prompt) {
+  const modelName = "gemini-2.0-flash";
+  const url = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
+  
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              {
+                text: prompt,
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error(`❌ Lỗi từ Google API:`, errText);
+      return null;
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (err) {
+    console.error(`❌ Lỗi khi gọi API:`, err.message);
+    return null;
+  }
+}
+
 // --- API ROUTES ---
 app.post("/api/upload", upload.array("files", 5), (req, res) => {
   if (!req.files || req.files.length === 0) return res.status(400).json({ message: "No file" });
@@ -159,15 +195,26 @@ app.get("/api/users/suggestions", authenticateToken, async (req, res) => {
   } catch (e) { res.status(500).json({ message: "Error" }); }
 });
 
-// === NEW: AI FRIEND RECOMMENDATIONS ===
+// === NEW: AI FRIEND RECOMMENDATIONS (FIX 2: Sửa route /api/ai/recommend-friends) ===
 app.post("/api/ai/recommend-friends", authenticateToken, async (req, res) => {
   const { criteria } = req.body;
   const userId = req.user.userId;
-  
-  try {
-    const [userInfo] = await db.query("SELECT bio, location, work, education FROM users WHERE id=?", [userId]);
-    const user = userInfo[0];
     
+  if (!GEMINI_API_KEY) {
+    return res.status(500).json({ message: "Chưa cấu hình GEMINI_API_KEY" });
+  }
+
+  try {
+    const [userInfo] = await db.query(
+      "SELECT bio, location, work, education FROM users WHERE id=?", 
+      [userId]
+    );
+        
+    if (!userInfo || userInfo.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    const user = userInfo[0];
+        
     const [potentialFriends] = await db.query(`
       SELECT id, username, nickname, avatar, bio, location, work, education 
       FROM users 
@@ -179,6 +226,10 @@ app.post("/api/ai/recommend-friends", authenticateToken, async (req, res) => {
       )
       LIMIT 50
     `, [userId, userId, userId]);
+    
+    if (!potentialFriends || potentialFriends.length === 0) {
+      return res.json({ recommendations: [], reasons: [] });
+    }
 
     const prompt = `Bạn là một hệ thống gợi ý bạn bè thông minh cho mạng xã hội. 
     Hãy phân tích và gợi ý 5 người bạn tốt nhất từ danh sách dưới đây dựa trên tiêu chí: "${criteria || 'Những người có cùng sở thích và lĩnh vực công việc'}"
@@ -201,29 +252,47 @@ app.post("/api/ai/recommend-friends", authenticateToken, async (req, res) => {
 
     const data = await callGeminiAPI(prompt);
 
+    if (!data) {
+      return res.status(500).json({ message: "AI đang quá tải, vui lòng thử lại" });
+    }
+
     if (data && data.candidates && data.candidates.length > 0) {
-      const responseText = data.candidates[0].content.parts[0].text;
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      
-      if (jsonMatch) {
+      try {
+        const responseText = data.candidates[0].content.parts[0].text;
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+                
+        if (!jsonMatch) {
+          return res.status(400).json({ message: "Không thể phân tích gợi ý" });
+        }
+        
         const recommendations = JSON.parse(jsonMatch[0]);
-        const recommendedIds = recommendations.recommendations.map(r => r.id);
+        const recommendedIds = recommendations.recommendations
+          .map(r => parseInt(r.id))
+          .filter(id => potentialFriends.some(u => u.id === id));
+          
+        if (recommendedIds.length === 0) {
+          return res.json({ recommendations: [], reasons: recommendations.recommendations });
+        }
         
         const [detailedUsers] = await db.query(
           `SELECT id, username, nickname, avatar FROM users WHERE id IN (${recommendedIds.join(',')})`,
           []
         );
         
-        res.json({ recommendations: detailedUsers, reasons: recommendations.recommendations });
-      } else {
-        res.status(400).json({ message: "Không thể phân tích gợi ý" });
+        res.json({ 
+          recommendations: detailedUsers, 
+          reasons: recommendations.recommendations 
+        });
+      } catch (parseErr) {
+        console.error("Error parsing AI response:", parseErr);
+        res.status(400).json({ message: "Lỗi xử lý phản hồi AI" });
       }
     } else {
-      res.status(500).json({ message: "AI đang quá tải" });
+      res.status(500).json({ message: "AI chưa sẵn sàng" });
     }
   } catch (e) {
     console.error("AI recommendation error:", e);
-    res.status(500).json({ message: "Lỗi hệ thống" });
+    res.status(500).json({ message: "Lỗi hệ thống: " + e.message });
   }
 });
 
@@ -568,58 +637,30 @@ app.delete("/api/posts/:postId", authenticateToken, async (req, res) => {
 
 // ===== END OF NEW API ENDPOINTS =====
 
-// --- GEMINI AI LOGIC WITH CONTEXT ---
-async function callGeminiAPI(prompt) {
-  const modelName = "gemini-2.0-flash";
-  const url = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
-  
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                text: prompt,
-              },
-            ],
-          },
-        ],
-      }),
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error(`❌ Lỗi từ Google API:`, errText);
-      return null;
-    }
-
-    const data = await response.json();
-    return data;
-  } catch (err) {
-    console.error(`❌ Lỗi khi gọi API:`, err.message);
-    return null;
-  }
-}
 
 // --- SOCKET ---
+// (FIX 3: Sửa hàm handleAIChat trong Socket)
 async function handleAIChat(msg, uid, socket) {
-  if (!GEMINI_API_KEY) return socket.emit("newMessage", { senderId: AI_BOT_ID, content: "AI chưa sẵn sàng.", createdAt: new Date() });
-  
+  if (!GEMINI_API_KEY) {
+    return socket.emit("newMessage", {
+      senderId: AI_BOT_ID,
+      content: "AI chưa sẵn sàng. Vui lòng kiểm tra cấu hình.",
+      createdAt: new Date()
+    });
+  }
+    
   try {
     // Lấy lịch sử cuộc trò chuyện
     const [chatHistory] = await db.query(
       "SELECT content, senderId FROM messages WHERE (senderId=? AND recipientId=?) OR (senderId=? AND recipientId=?) ORDER BY createdAt DESC LIMIT ?",
       [uid, AI_BOT_ID, AI_BOT_ID, uid, MAX_HISTORY]
     );
-
+    
     // Xây dựng context từ lịch sử
     let contextPrompt = `Bạn là một trợ lý ảo thông minh cho mạng xã hội Nexus. Hãy trả lời bằng tiếng Việt.
     
 Lịch sử trò chuyện gần đây:
-${chatHistory.reverse().map(h => `${h.senderId === AI_BOT_ID ? '🤖 Trợ lý' : '👤 Người dùng'}: ${h.content}`).join('\n')}
+${chatHistory.reverse().map(h => `${h.senderId === AI_BOT_ID ? '🤖 Trợ lý' : '🧑 Người dùng'}: ${h.content}`).join('\n')}
 
 Câu hỏi mới từ người dùng: ${msg}
 
@@ -627,17 +668,43 @@ Hãy trả lời một cách thân thiện, hữu ích và liên quan đến l�
 
     const data = await callGeminiAPI(contextPrompt);
 
-    if (data && data.candidates && data.candidates.length > 0) {
-      const reply = data.candidates[0].content.parts[0].text;
-      const [r] = await db.query("INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)", [AI_BOT_ID, uid, reply]);
-      socket.emit("newMessage", { id: r.insertId, senderId: AI_BOT_ID, content: reply, createdAt: new Date() });
-      console.log(`✅ Phản hồi AI gửi thành công`);
-    } else {
-      socket.emit("newMessage", { senderId: AI_BOT_ID, content: "Xin lỗi, tôi đang quá tải. Vui lòng thử lại sau.", createdAt: new Date() });
+    if (!data) {
+      return socket.emit("newMessage", {
+        senderId: AI_BOT_ID,
+        content: "Xin lỗi, hệ thống AI đang gặp sự cố. Vui lòng thử lại sau.",
+        createdAt: new Date()
+      });
     }
-  } catch (e) { 
-    socket.emit("newMessage", { senderId: AI_BOT_ID, content: "Lỗi hệ thống AI. Vui lòng thử lại.", createdAt: new Date() });
-    console.error(`❌ Lỗi AI:`, e.message);
+
+    if (data.candidates && data.candidates.length > 0) {
+      const reply = data.candidates[0].content.parts[0].text;
+      const [r] = await db.query(
+        "INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)",
+        [AI_BOT_ID, uid, reply]
+      );
+            
+      socket.emit("newMessage", {
+        id: r.insertId,
+        senderId: AI_BOT_ID,
+        content: reply,
+        createdAt: new Date()
+      });
+            
+      console.log("✅ Phản hồi AI gửi thành công");
+    } else {
+      socket.emit("newMessage", {
+        senderId: AI_BOT_ID,
+        content: "Xin lỗi, tôi đang quá tải. Vui lòng thử lại sau.",
+        createdAt: new Date()
+      });
+    }
+  } catch (e) {
+    console.error("❌ Lỗi AI:", e.message);
+    socket.emit("newMessage", {
+      senderId: AI_BOT_ID,
+      content: "Lỗi hệ thống AI. Vui lòng thử lại.",
+      createdAt: new Date()
+    });
   }
 }
 
