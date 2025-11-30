@@ -7,7 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <link rel="stylesheet" href="chat-style.css" />
-    </head>
+  </head>
   <body data-theme="dark">
     
     <nav class="navbar glass-header">
@@ -21,9 +21,12 @@
         <a href="/home.html" class="nav-item"><i class="fas fa-home"></i></a>
         <a href="/friends.html" class="nav-item"><i class="fas fa-user-friends"></i></a>
         <a href="#" class="nav-item active"><i class="fas fa-comment-alt"></i></a>
+        <a href="/notifications.html" class="nav-item" style="position: relative;">
+            <div class="nav-badge">3</div> <i class="fas fa-bell"></i>
+        </a>
       </div>
       <div class="nav-right">
-        <div class="nav-profile"><img id="nav-avatar" src="https://ui-avatars.com/api/?name=Loading" /></div>
+        <div class="nav-profile"><img id="nav-avatar" src="" onerror="this.src='https://ui-avatars.com/api/?name=U'" /></div>
         <button class="icon-circle-btn" id="theme-toggle"><i class="fas fa-adjust"></i></button>
         <button class="icon-circle-btn" onclick="location.href='/logout'"><i class="fas fa-sign-out-alt"></i></button>
       </div>
@@ -36,9 +39,7 @@
             <div class="icon-btn-small" id="create-group-btn" title="Tạo nhóm"><i class="fas fa-users-cog"></i></div>
         </div>
         <div class="sidebar-search"><i class="fas fa-search"></i><input type="text" placeholder="Tìm kiếm..." /></div>
-        <div class="user-list custom-scroll" id="user-list">
-            <div style="text-align:center; padding:20px; color:#ccc;">Đang tải...</div>
-        </div>
+        <div class="user-list custom-scroll" id="user-list"></div>
       </aside>
 
       <main class="chat-area" id="chat-panel">
@@ -46,8 +47,8 @@
           <div class="header-left-group">
             <button class="back-btn" id="mobile-back-btn"><i class="fas fa-arrow-left"></i></button>
             <div class="header-user">
-                <div class="avatar-circle"><img id="header-avatar" src="https://ui-avatars.com/api/?name=..." /><div class="status-indicator online"></div></div>
-                <div class="header-text"><h3 id="chat-header-title">Chọn hội thoại</h3><span id="chat-status" class="status-sub">--</span></div>
+                <div class="avatar-circle"><img id="header-avatar" src="" onerror="this.src='https://ui-avatars.com/api/?name=Chat'" /><div class="status-indicator online"></div></div>
+                <div class="header-text"><h3 id="chat-header-title">...</h3><span id="chat-status" class="status-sub">--</span></div>
             </div>
           </div>
           <div class="header-tools">
@@ -77,6 +78,7 @@
             </div>
             
             <div class="emoji-picker hidden" id="emoji-picker">
+                <div class="emoji-header">Cảm xúc</div>
                 <div class="emoji-grid">
                     <span>😀</span><span>😂</span><span>🤣</span><span>😍</span><span>🥰</span><span>😎</span>
                     <span>😭</span><span>😡</span><span>👍</span><span>👎</span><span>❤️</span><span>💔</span>
