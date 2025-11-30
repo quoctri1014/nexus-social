@@ -7,8 +7,14 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <link rel="stylesheet" href="chat-style.css" />
-    </head>
+    <!-- Emoji Lib -->
+    <script src="https://cdn.jsdelivr.net/npm/@joeattardi/emoji-button@4.6.0/dist/index.min.js"></script>
+  </head>
   <body data-theme="dark">
+    
+    <!-- CONTAINER HIỆU ỨNG TIM BAY -->
+    <div id="floating-hearts-container"></div>
+
     <nav class="navbar glass-header">
       <div class="nav-left">
         <div class="logo" onclick="location.href='/home.html'">
@@ -20,7 +26,6 @@
         <a href="/home.html" class="nav-item"><i class="fas fa-home"></i></a>
         <a href="/friends.html" class="nav-item"><i class="fas fa-user-friends"></i></a>
         <a href="#" class="nav-item active"><i class="fas fa-comment-alt"></i></a>
-        <a href="/notifications.html" class="nav-item"><div class="nav-badge">3</div><i class="fas fa-bell"></i></a>
       </div>
       <div class="nav-right">
         <div class="nav-profile"><img id="nav-avatar" src="" /></div>
@@ -66,25 +71,32 @@
             <div class="chat-footer glass-panel">
                 <input type="file" id="chat-file-input" hidden />
                 <button type="button" class="btn-icon" id="attach-btn"><i class="fas fa-paperclip"></i></button>
+                
                 <div class="input-box">
                     <input type="text" id="message-input" placeholder="Nhập tin nhắn..." autocomplete="off" disabled />
                     <button type="button" class="btn-emoji" id="emoji-trigger"><i class="far fa-smile"></i></button>
                 </div>
+                
+                <!-- Nút Secret Mode (Tự hủy) -->
+                <button type="button" class="btn-icon" id="secret-mode-btn" title="Tin nhắn tự hủy (10s)">
+                    <i class="fas fa-bomb"></i>
+                </button>
+
+                <!-- Nút Voice -->
                 <button type="button" class="btn-icon" id="voice-btn"><i class="fas fa-microphone"></i></button>
-                <button type="submit" class="btn-send" id="send-btn" disabled><i class="fas fa-paper-plane"></i></button>
-            </div>
-            <div class="emoji-picker hidden" id="emoji-picker">
-                <div class="emoji-grid">
-                    <span>😀</span><span>😂</span><span>🤣</span><span>😍</span><span>🥰</span><span>😎</span>
-                    <span>😭</span><span>😡</span><span>👍</span><span>👎</span><span>❤️</span><span>💔</span>
-                    <span>🎉</span><span>🔥</span><span>💩</span><span>👻</span><span>👀</span><span>🤔</span>
-                    <span>👋</span><span>🙏</span><span>🤝</span><span>💋</span><span>🌹</span><span>💯</span>
-                </div>
+                
+                <!-- Nút Thả Tim -->
+                <button type="button" class="btn-icon heart-btn" id="heart-btn" title="Thả tim">
+                    <i class="fas fa-heart"></i>
+                </button>
+
+                <button type="submit" class="btn-send hidden" id="send-btn" disabled><i class="fas fa-paper-plane"></i></button>
             </div>
         </form>
       </main>
     </div>
 
+    <!-- MODALS -->
     <div id="group-modal" class="modal-overlay hidden">
         <div class="modal-box glass-panel">
             <h3>Tạo nhóm mới</h3>
@@ -105,8 +117,8 @@
              <div class="bg-preset" style="background: linear-gradient(135deg, #ff9a9e, #fecfef);" onclick="changeBg('linear-gradient(135deg, #ff9a9e, #fecfef)')"></div>
              <div class="bg-preset" style="background: linear-gradient(135deg, #0ba360, #3cba92);" onclick="changeBg('linear-gradient(135deg, #0ba360, #3cba92)')"></div>
         </div>
-        <input type="text" id="bg-url-input" placeholder="Link ảnh..." />
-        <button id="save-bg-btn">Áp dụng Link</button>
+        <input type="text" id="bg-url-input" placeholder="URL ảnh..." />
+        <button id="save-bg-btn">Áp dụng</button>
         <div class="close-modal" id="close-bg-modal">Đóng</div>
       </div>
     </div>
