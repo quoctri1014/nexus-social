@@ -70,6 +70,11 @@
           </a>
         </div>
         <div class="nav-right">
+          <button class="hamburger-btn" id="hamburger-btn">
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
           <div class="user-profile" id="open-profile-btn">
             <img id="nav-avatar" src="" alt="" />
             <div class="user-info-nav">
@@ -86,8 +91,8 @@
       </div>
     </nav>
 
-    <div class="main-layout">
-      <aside class="sidebar-left">
+    <div class="main-layout" id="main-layout">
+      <aside class="sidebar-left" id="sidebar-left">
         <div class="profile-card-mini" id="my-profile-card">
           <div class="pcm-cover"></div>
           <div class="pcm-info">
@@ -200,6 +205,10 @@
       </aside>
     </div>
 
+    <!-- OVERLAY -->
+    <div class="home-overlay" id="home-overlay"></div>
+
+    <!-- PROFILE MODAL -->
     <div id="profile-modal" class="modal-backdrop hidden">
       <div class="modal-content profile-edit-box">
         <div class="modal-header">
@@ -260,6 +269,42 @@
     </div>
 
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+      // Hamburger menu
+      const hamburgerBtn = document.getElementById('hamburger-btn');
+      const sidebarLeft = document.getElementById('sidebar-left');
+      const overlay = document.getElementById('home-overlay');
+
+      hamburgerBtn?.addEventListener('click', () => {
+        hamburgerBtn.classList.toggle('active');
+        sidebarLeft.classList.toggle('active');
+        overlay.classList.toggle('active');
+      });
+
+      overlay?.addEventListener('click', () => {
+        hamburgerBtn?.classList.remove('active');
+        sidebarLeft?.classList.remove('active');
+        overlay?.classList.remove('active');
+      });
+
+      // Close menu on menu item click
+      document.querySelectorAll('.menu-item').forEach(item => {
+        item.addEventListener('click', () => {
+          hamburgerBtn?.classList.remove('active');
+          sidebarLeft?.classList.remove('active');
+          overlay?.classList.remove('active');
+        });
+      });
+
+      // Close menu on window resize
+      window.addEventListener('resize', () => {
+        if (window.innerWidth > 768) {
+          hamburgerBtn?.classList.remove('active');
+          sidebarLeft?.classList.remove('active');
+          overlay?.classList.remove('active');
+        }
+      });
+    </script>
     <script src="home.js"></script>
   </body>
 </html>
