@@ -31,7 +31,6 @@
     </nav>
 
     <div class="chat-container" id="main-container">
-      
       <aside class="sidebar glass-panel" id="sidebar-panel">
         <div class="sidebar-header">
             <h3>Tin nhắn</h3>
@@ -50,7 +49,6 @@
         <header class="chat-header glass-panel">
           <div class="header-left-group">
             <button class="back-btn" id="mobile-back-btn"><i class="fas fa-arrow-left"></i></button>
-            
             <div class="header-user">
                 <div class="avatar-circle">
                     <img id="header-avatar" src="" />
@@ -105,8 +103,7 @@
         <div class="modal-box glass-panel">
             <h3>Tạo nhóm mới</h3>
             <input type="text" id="group-name-input" placeholder="Đặt tên nhóm..." />
-            <div class="group-members-select custom-scroll" id="group-members-list">
-                </div>
+            <div class="group-members-select custom-scroll" id="group-members-list"></div>
             <div class="modal-actions">
                 <button id="confirm-create-group">Tạo nhóm</button>
                 <div class="close-modal" id="close-group-modal">Hủy</div>
@@ -152,7 +149,10 @@
 
     <div id="incoming-call-modal" class="call-overlay hidden" style="z-index: 6000; background: rgba(0,0,0,0.9);">
         <div class="incoming-call-card">
-            <img id="incoming-avatar" src="">
+            <div class="caller-avatar-anim">
+                <img id="incoming-avatar" src="">
+                <div class="ripple"></div>
+            </div>
             <h3 id="incoming-name">...</h3>
             <p>Đang gọi...</p>
             <div class="incoming-actions">
