@@ -9,23 +9,29 @@ document.addEventListener("DOMContentLoaded", () => {
   window.myUserId = null;
   window.myUsername = null;
   window.currentChatContext = { id: null, name: null, type: "user" };
+  
+  let isSecretMode = false;
 
   const chatContainer = document.getElementById("main-container");
   const messagesContainer = document.getElementById("messages");
   const messageInput = document.getElementById("message-input");
+  const sendBtn = document.getElementById("send-btn");
   const userListDiv = document.getElementById("user-list");
   const headerAvatarContainer = document.querySelector(".chat-header .avatar-circle");
   const chatContent = document.getElementById("chat-content-container");
-  
-  // Dark Mode
+
+  // Logic Dark Mode
   const themeToggle = document.getElementById("theme-toggle");
   const currentTheme = localStorage.getItem("theme") || "dark";
   document.body.setAttribute("data-theme", currentTheme);
-  if(themeToggle) themeToggle.addEventListener("click", () => {
-      const newTheme = document.body.getAttribute("data-theme") === "dark" ? "light" : "dark";
-      document.body.setAttribute("data-theme", newTheme);
-      localStorage.setItem("theme", newTheme);
-  });
+  
+  if(themeToggle) {
+      themeToggle.addEventListener("click", () => {
+          const newTheme = document.body.getAttribute("data-theme") === "dark" ? "light" : "dark";
+          document.body.setAttribute("data-theme", newTheme);
+          localStorage.setItem("theme", newTheme);
+      });
+  }
 
   // Load BG
   const savedBg = localStorage.getItem("chatBg");
@@ -53,7 +59,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function scrollToBottom() { if(messagesContainer) messagesContainer.scrollTop = messagesContainer.scrollHeight; }
 
-  // 2. RENDER USER LIST
+  // 2. USER LIST
   window.socket.on("userList", (users) => {
     if(!userListDiv) return;
     userListDiv.innerHTML = "";
@@ -64,7 +70,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const div = document.createElement("div");
       div.className = `user-item ${isActive ? "active" : ""}`;
       const avt = getAvatar(u);
-      const imgHtml = avt.startsWith("<i") ? `<div class="user-avatar ai-icon-wrapper">${avt}</div>` : `<div class="user-avatar"><img src="${avt}"></div>`;
+      const imgHtml = avt.startsWith("<i") ? `<div class="user-avatar ai-icon-wrapper">${avt}</div>` : `<div class="user-avatar"><img src="${avt}" onerror="this.src='https://ui-avatars.com/api/?name=U'"></div>`;
       div.innerHTML = `${imgHtml}<div class="user-info"><div class="user-name">${u.nickname || u.username}</div><div class="user-preview">${u.userId===0?"Trợ lý ảo":(u.online?"Online":"Offline")}</div></div>`;
       div.onclick = () => selectChat(u);
       userListDiv.appendChild(div);
@@ -72,6 +78,9 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   function selectChat(user) {
+    // KHI CHỌN USER THÌ MỚI GÁN CONTEXT
+    if (!user || !user.userId) return; 
+
     window.currentChatContext = { id: user.userId, name: user.nickname || user.username, type: "user" };
     document.getElementById("chat-header-title").textContent = window.currentChatContext.name;
     document.getElementById("chat-status").textContent = user.userId === 0 ? "Trợ lý AI" : (user.online ? "Đang hoạt động" : "Ngoại tuyến");
@@ -95,7 +104,7 @@ document.addEventListener("DOMContentLoaded", () => {
     window.dispatchEvent(new Event("contextChanged"));
   }
 
-  // 3. MESSAGE HANDLING
+  // 3. MESSAGE
   window.socket.on("privateHistory", ({ messages }) => {
     if(!messagesContainer) return;
     messagesContainer.innerHTML = "";
@@ -111,10 +120,10 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   window.appendMessage = function (msg, shouldScroll = true) {
-    if(document.getElementById(`msg-${msg.id || msg.createdAt}`)) return; 
+    if(document.getElementById(`msg-${msg.id}`)) return; 
 
     const div = document.createElement("div");
-    div.id = `msg-${msg.id || Date.now()}`;
+    div.id = `msg-${msg.id}`;
     const type = msg.senderId === window.myUserId ? "user" : "other";
     div.className = `message ${type}`;
 
@@ -135,25 +144,27 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     } catch (e) { }
 
-    const time = new Date(msg.createdAt || Date.now()).toLocaleTimeString("vi-VN", {hour:"2-digit", minute:"2-digit"});
+    const time = new Date(msg.createdAt).toLocaleTimeString("vi-VN", {hour:"2-digit", minute:"2-digit"});
     div.innerHTML = `${content}<span class="timestamp">${time}</span>`;
     if(messagesContainer) messagesContainer.appendChild(div);
     if(shouldScroll) scrollToBottom();
   };
 
-  // 4. SEND MESSAGE (ĐÃ FIX)
+  // 4. SEND MESSAGE
   const chatForm = document.getElementById("chat-form");
   if(chatForm) {
       chatForm.addEventListener("submit", (e) => {
         e.preventDefault();
         const val = messageInput.value.trim();
-        if (!val || !window.currentChatContext.id) return;
+        // THÊM KIỂM TRA TRƯỚC KHI GỬI
+        if (!val || !window.currentChatContext.id || window.currentChatContext.id === undefined) return; 
+
         window.socket.emit("privateMessage", { recipientId: window.currentChatContext.id, content: val });
         messageInput.value = "";
       });
   }
 
-  // 5. EMOJI (MANUAL)
+  // 5. EMOJI & UTILS (Giữ nguyên)
   const emojiBtn = document.getElementById("emoji-trigger");
   const emojiPicker = document.getElementById("emoji-picker");
   if(emojiBtn && emojiPicker) {
@@ -167,7 +178,6 @@ document.addEventListener("DOMContentLoaded", () => {
       document.addEventListener("click", (e) => { if(!emojiPicker.contains(e.target) && e.target !== emojiBtn) emojiPicker.classList.add("hidden"); });
   }
 
-  // 6. VOICE
   const voiceBtn = document.getElementById("voice-btn");
   let mediaRecorder, audioChunks=[], isRecording=false;
   if(voiceBtn) {
@@ -184,7 +194,7 @@ document.addEventListener("DOMContentLoaded", () => {
                       const formData = new FormData();
                       formData.append("files", blob, `voice_${Date.now()}.webm`);
                       voiceBtn.classList.remove("recording");
-                      messageInput.placeholder = "Đang gửi...";
+                      if(messageInput) messageInput.placeholder = "Đang gửi...";
                       
                       const res = await fetch("/api/upload", {method:"POST", headers:{"Authorization":`Bearer ${token}`}, body:formData});
                       const files = await res.json();
@@ -193,12 +203,12 @@ document.addEventListener("DOMContentLoaded", () => {
                           window.socket.emit("privateMessage", {recipientId: window.currentChatContext.id, content});
                       }
                       stream.getTracks().forEach(t=>t.stop());
-                      messageInput.placeholder = "Nhập tin nhắn...";
+                      if(messageInput) messageInput.placeholder = "Nhập tin nhắn...";
                   };
                   mediaRecorder.start();
                   isRecording=true;
                   voiceBtn.classList.add("recording");
-                  messageInput.placeholder = "Đang ghi âm...";
+                  if(messageInput) messageInput.placeholder = "Đang ghi âm...";
               } catch(e) { alert("Lỗi Mic: "+e.message); }
           } else {
               mediaRecorder.stop();
@@ -207,7 +217,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
   }
 
-  // 7. GROUP & UTILS
+  // ... (Group Modal, BG, Attach giữ nguyên) ...
   const mobileBack = document.getElementById("mobile-back-btn");
   if(mobileBack) mobileBack.addEventListener("click", () => {
       chatContainer.classList.remove("mobile-active");
@@ -256,6 +266,8 @@ document.addEventListener("DOMContentLoaded", () => {
       });
   }
 
+  // BG Modal
+  const chatContent = document.getElementById("chat-content-container");
   window.changeBg = function(val) {
       chatContent.style.backgroundImage = "none"; chatContent.style.background = val;
       localStorage.setItem("chatBg", val); document.getElementById("bg-modal").classList.add("hidden");
