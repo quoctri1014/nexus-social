@@ -13,8 +13,7 @@
 
     <nav class="navbar glass-header">
       <div class="nav-left">
-        <div class="logo" onclick="location.href='/home.html'">
-          <span class="brand-text">Nexus</span>
+        <div class="logo"> <span class="brand-text">Nexus</span>
         </div>
       </div>
       <div class="nav-center">
@@ -26,7 +25,7 @@
       <div class="nav-right">
         <div class="nav-profile"><img id="nav-avatar" src="" /></div>
         <button class="icon-circle-btn" id="theme-toggle"><i class="fas fa-adjust"></i></button>
-        <button class="icon-circle-btn" onclick="location.href='/logout'"><i class="fas fa-sign-out-alt"></i></button>
+        <button class="icon-circle-btn" id="logout-btn"><i class="fas fa-sign-out-alt"></i></button>
       </div>
     </nav>
 
@@ -50,10 +49,10 @@
             </div>
           </div>
           <div class="header-tools">
-            <button class="tool-btn" id="call-button" style="display: none"><i class="fas fa-phone"></i></button>
-            <button class="tool-btn" id="video-call-button" style="display: none"><i class="fas fa-video"></i></button>
-            <button class="tool-btn" id="delete-chat-btn" style="display: none; color: #ef4444"><i class="fas fa-trash"></i></button>
-            <button class="tool-btn" id="chat-settings-btn"><i class="fas fa-image"></i></button>
+            <button class="tool-btn" id="call-button" title="Gọi thoại"><i class="fas fa-phone"></i></button>
+            <button class="tool-btn" id="video-call-button" title="Video Call"><i class="fas fa-video"></i></button>
+            <button class="tool-btn" id="delete-chat-btn" style="display: none; color: #ef4444" title="Xóa đoạn chat"><i class="fas fa-trash"></i></button>
+            <button class="tool-btn" id="chat-settings-btn" title="Đổi hình nền"><i class="fas fa-image"></i></button>
           </div>
         </header>
 
@@ -64,20 +63,26 @@
 
         <form class="chat-footer-wrapper" id="chat-form">
           <div class="chat-footer glass-panel">
+            <input type="file" id="hidden-file-input" style="display: none;" multiple accept="image/*,video/*,audio/*" />
+            
             <button type="button" class="btn-icon" id="attach-btn"><i class="fas fa-paperclip"></i></button>
             <div class="input-box">
               <input type="text" id="message-input" placeholder="Nhập tin nhắn..." autocomplete="off" disabled />
               <button type="button" class="btn-emoji" id="emoji-trigger"><i class="far fa-smile"></i></button>
             </div>
-            <button type="button" class="btn-icon" id="secret-mode-btn"><i class="fas fa-bomb"></i></button>
-            <button type="button" class="btn-icon" id="voice-btn"><i class="fas fa-microphone"></i></button>
-            <button type="button" class="btn-icon heart-btn" id="heart-btn"><i class="fas fa-heart"></i></button>
+            <button type="button" class="btn-icon" id="secret-mode-btn" title="Tin nhắn tự hủy"><i class="fas fa-bomb"></i></button>
+            <button type="button" class="btn-icon" id="voice-btn" title="Gửi ghi âm"><i class="fas fa-microphone"></i></button>
+            <button type="button" class="btn-icon heart-btn" id="heart-btn" title="Thả tim"><i class="fas fa-heart"></i></button>
             <button type="submit" class="btn-send hidden" id="send-btn" disabled><i class="fas fa-paper-plane"></i></button>
           </div>
-          <div class="emoji-picker hidden" id="emoji-picker"><div class="emoji-grid">
+          
+          <div class="emoji-picker hidden" id="emoji-picker">
+            <div class="emoji-grid">
               <span>😀</span><span>😂</span><span>🤣</span><span>😍</span><span>🥰</span><span>😎</span>
               <span>😭</span><span>😡</span><span>👍</span><span>❤️</span><span>💔</span><span>🎉</span>
-          </div></div>
+              <span>👻</span><span>👀</span><span>🤔</span><span>🙏</span><span>🤝</span><span>👌</span>
+            </div>
+          </div>
         </form>
       </main>
     </div>
@@ -94,15 +99,14 @@
     <div id="bg-modal" class="modal-overlay hidden">
       <div class="modal-box glass-panel">
         <h3>Đổi hình nền</h3>
-        <div class="bg-presets custom-scroll">
-          <div class="bg-preset" style="background: linear-gradient(135deg, #667eea, #764ba2)" onclick="changeBg('linear-gradient(135deg, #667eea, #764ba2)')"></div>
-          <div class="bg-preset" style="background: linear-gradient(135deg, #ff9a9e, #fecfef)" onclick="changeBg('linear-gradient(135deg, #ff9a9e, #fecfef)')"></div>
-          <div class="bg-preset" style="background: linear-gradient(135deg, #84fab0, #8fd3f4)" onclick="changeBg('linear-gradient(135deg, #84fab0, #8fd3f4)')"></div>
-          <div class="bg-preset" style="background: linear-gradient(135deg, #fccb90, #d57eeb)" onclick="changeBg('linear-gradient(135deg, #fccb90, #d57eeb)')"></div>
-          <div class="bg-preset" style="background: linear-gradient(135deg, #e0c3fc, #8ec5fc)" onclick="changeBg('linear-gradient(135deg, #e0c3fc, #8ec5fc)')"></div>
-          <div class="bg-preset" style="background: linear-gradient(135deg, #43e97b, #38f9d7)" onclick="changeBg('linear-gradient(135deg, #43e97b, #38f9d7)')"></div>
-          <div class="bg-preset" style="background: linear-gradient(135deg, #fa709a, #fee140)" onclick="changeBg('linear-gradient(135deg, #fa709a, #fee140)')"></div>
-          <div class="bg-preset" style="background: #0f172a" onclick="changeBg('#0f172a')"></div>
+        <div class="bg-presets custom-scroll" id="bg-list">
+          <div class="bg-preset" data-bg="linear-gradient(135deg, #667eea, #764ba2)" style="background: linear-gradient(135deg, #667eea, #764ba2)"></div>
+          <div class="bg-preset" data-bg="linear-gradient(135deg, #ff9a9e, #fecfef)" style="background: linear-gradient(135deg, #ff9a9e, #fecfef)"></div>
+          <div class="bg-preset" data-bg="linear-gradient(135deg, #84fab0, #8fd3f4)" style="background: linear-gradient(135deg, #84fab0, #8fd3f4)"></div>
+          <div class="bg-preset" data-bg="linear-gradient(135deg, #fccb90, #d57eeb)" style="background: linear-gradient(135deg, #fccb90, #d57eeb)"></div>
+          <div class="bg-preset" data-bg="linear-gradient(135deg, #e0c3fc, #8ec5fc)" style="background: linear-gradient(135deg, #e0c3fc, #8ec5fc)"></div>
+          <div class="bg-preset" data-bg="linear-gradient(135deg, #43e97b, #38f9d7)" style="background: linear-gradient(135deg, #43e97b, #38f9d7)"></div>
+          <div class="bg-preset" data-bg="#0f172a" style="background: #0f172a"></div>
         </div>
         <p style="font-size: 12px; margin: 10px 0; color: #aaa">Hoặc nhập link ảnh:</p>
         <input type="text" id="bg-url-input" placeholder="URL ảnh..." />
