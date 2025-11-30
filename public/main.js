@@ -1,8 +1,10 @@
 document.addEventListener("DOMContentLoaded", () => {
+  // 1. KIỂM TRA MÔI TRƯỜNG & AUTH
   if (!window.location.pathname.endsWith("chat.html")) return;
   const token = localStorage.getItem("token");
   if (!token) { window.location.href = "/index.html"; return; }
 
+  // 2. KẾT NỐI SOCKET
   window.socket = io({ auth: { token } });
   window.myUserId = null;
   window.myUsername = null;
@@ -10,7 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let isSecretMode = false;
   const AI_BOT_ID = 1;
 
-  // DOM
+  // 3. DOM ELEMENTS
   const chatContainer = document.getElementById("main-container");
   const messagesContainer = document.getElementById("messages");
   const messageInput = document.getElementById("message-input");
@@ -18,26 +20,40 @@ document.addEventListener("DOMContentLoaded", () => {
   const heartBtn = document.getElementById("heart-btn");
   const secretBtn = document.getElementById("secret-mode-btn");
   const voiceBtn = document.getElementById("voice-btn");
+  const attachBtn = document.getElementById("attach-btn");
+  const hiddenFileInput = document.getElementById("hidden-file-input");
+  const callBtn = document.getElementById("call-button");
+  const videoBtn = document.getElementById("video-call-button");
+  const logoutBtn = document.getElementById("logout-btn");
   const userListDiv = document.getElementById("user-list");
   const chatContentContainer = document.getElementById("chat-content-container");
   const headerAvatarContainer = document.querySelector(".chat-header .avatar-circle");
 
-  // Load Theme & Bg
+  // Xử lý Logout
+  if(logoutBtn) logoutBtn.addEventListener("click", () => {
+    localStorage.removeItem("token");
+    window.location.href = "/index.html";
+  });
+
+  // 4. LOAD THEME & BACKGROUND
   document.body.setAttribute("data-theme", localStorage.getItem("theme") || "dark");
   const savedBg = localStorage.getItem("chatBg");
   if (savedBg && chatContentContainer) {
-    if (savedBg.startsWith("http") || savedBg.startsWith("url")) chatContentContainer.style.backgroundImage = savedBg.startsWith("url") ? savedBg : `url('${savedBg}')`;
-    else { chatContentContainer.style.backgroundImage = "none"; chatContentContainer.style.background = savedBg; }
+    if (savedBg.startsWith("http") || savedBg.startsWith("url")) 
+      chatContentContainer.style.backgroundImage = savedBg.startsWith("url") ? savedBg : `url('${savedBg}')`;
+    else { 
+      chatContentContainer.style.backgroundImage = "none"; 
+      chatContentContainer.style.background = savedBg; 
+    }
   }
 
-  // Get Me
+  // 5. LẤY THÔNG TIN USER
   fetch("/api/me", { headers: { Authorization: `Bearer ${token}` } }).then(r=>r.json()).then(u=>{
     window.myUserId = u.id; window.myUsername = u.username;
     const navAvt = document.getElementById("nav-avatar");
     if(navAvt) navAvt.src = u.avatar && !u.avatar.includes("avatar1.png") ? (u.avatar.startsWith("http")?u.avatar:`/uploads/${u.avatar}`) : `https://ui-avatars.com/api/?name=${u.nickname||u.username}`;
   });
 
-  // Avatar Helper
   function getAvatarHtml(u) {
     if (u.id === AI_BOT_ID || u.username === "Trợ lý AI") return `<div class="ai-icon-wrapper"><i class="fas fa-robot ai-avatar-icon"></i></div>`;
     if (u.avatar && !u.avatar.includes("avatar1.png")) {
@@ -47,7 +63,7 @@ document.addEventListener("DOMContentLoaded", () => {
     return `<img src="https://ui-avatars.com/api/?name=${encodeURIComponent(u.nickname||u.username)}&background=random&color=fff">`;
   }
 
-  // Socket: User List
+  // 6. RENDER DANH SÁCH USER
   window.socket.on("userList", (users) => {
     if (!userListDiv) return;
     userListDiv.innerHTML = "";
@@ -64,14 +80,14 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // Select Chat
+  // 7. CHỌN NGƯỜI CHAT
   function selectChat(user) {
     if (!user || (!user.id && user.id !== 0)) return;
     window.currentChatContext = { id: user.id, name: user.nickname || user.username, type: "user" };
     
     document.getElementById("chat-header-title").textContent = window.currentChatContext.name;
     const isAI = user.id === AI_BOT_ID;
-    document.getElementById("chat-status").textContent = isAI ? "Trợ lý ảo" : (user.online ? "Đang hoạt động" : "Ngoại tuyến");
+    document.getElementById("chat-status").textContent = isAI ? "Trợ lý ảo thông minh" : (user.online ? "Đang hoạt động" : "Ngoại tuyến");
     
     if (headerAvatarContainer) { headerAvatarContainer.innerHTML = getAvatarHtml(user); headerAvatarContainer.className = "avatar-circle"; }
 
@@ -82,20 +98,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
     window.socket.emit("loadPrivateHistory", { recipientId: user.id });
 
-    // Show/Hide Buttons
+    // HIỆN CÁC NÚT BỊ MẤT
     const delBtn = document.getElementById("delete-chat-btn");
-    const callBtn = document.getElementById("call-button");
-    const vidBtn = document.getElementById("video-call-button");
-    if(delBtn) delBtn.style.display = isAI ? "none" : "flex"; 
+    // Nếu là AI thì ẩn nút gọi, nếu người thường thì hiện
     if(callBtn) callBtn.style.display = isAI ? "none" : "flex"; 
-    if(vidBtn) vidBtn.style.display = isAI ? "none" : "flex"; 
+    if(videoBtn) videoBtn.style.display = isAI ? "none" : "flex"; 
+    if(delBtn) delBtn.style.display = isAI ? "none" : "flex"; 
 
     isSecretMode = false;
     if(secretBtn) { secretBtn.classList.remove("active-secret"); secretBtn.style.color = ""; }
     if(messageInput) messageInput.placeholder = "Nhập tin nhắn...";
   }
 
-  // Message Handling
+  // 8. XỬ LÝ TIN NHẮN ĐẾN
   window.socket.on("privateHistory", ({ messages }) => {
     if (!messagesContainer) return;
     messagesContainer.innerHTML = "";
@@ -134,7 +149,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (shouldScroll) messagesContainer.scrollTop = messagesContainer.scrollHeight;
   };
 
-  // Actions
+  // 9. GỬI TIN NHẮN (TEXT)
   const chatForm = document.getElementById("chat-form");
   if(chatForm) chatForm.addEventListener("submit", (e) => {
     e.preventDefault();
@@ -151,7 +166,163 @@ document.addEventListener("DOMContentLoaded", () => {
     else { sendBtn.classList.add("hidden"); heartBtn.classList.remove("hidden"); }
   });
 
-  // Fix Heart Position
+  // 10. GỬI FILE ẢNH (ATTACHMENT) - SỬA LỖI
+  if (attachBtn && hiddenFileInput) {
+    attachBtn.addEventListener("click", () => {
+      if(!window.currentChatContext.id) return alert("Chọn người chat trước!");
+      hiddenFileInput.click(); // Kích hoạt input ẩn
+    });
+
+    hiddenFileInput.addEventListener("change", async (e) => {
+      const files = e.target.files;
+      if (files.length === 0) return;
+
+      const formData = new FormData();
+      for (let i = 0; i < files.length; i++) {
+        formData.append("files", files[i]);
+      }
+
+      // Hiện trạng thái đang gửi
+      messageInput.placeholder = "Đang gửi ảnh...";
+      
+      try {
+        const res = await fetch("/api/upload", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData
+        });
+        const uploadedFiles = await res.json();
+        
+        // Gửi từng file qua socket
+        uploadedFiles.forEach(file => {
+          const content = JSON.stringify({ type: file.type, url: file.url, name: file.name });
+          window.socket.emit("privateMessage", { recipientId: window.currentChatContext.id, content });
+        });
+      } catch (err) {
+        alert("Lỗi upload: " + err.message);
+      } finally {
+        messageInput.placeholder = "Nhập tin nhắn...";
+        hiddenFileInput.value = ""; // Reset input
+      }
+    });
+  }
+
+  // 11. GHI ÂM (VOICE CHAT) - SỬA LỖI
+  if (voiceBtn) {
+    let mediaRecorder, audioChunks = [], isRecording = false;
+    voiceBtn.addEventListener("click", async () => {
+      if (!window.currentChatContext.id) return alert("Chọn người chat trước!");
+      
+      if (!isRecording) {
+        // Bắt đầu ghi
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          mediaRecorder = new MediaRecorder(stream);
+          audioChunks = [];
+          
+          mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+          
+          mediaRecorder.onstop = async () => {
+            const blob = new Blob(audioChunks, { type: "audio/webm" });
+            const formData = new FormData();
+            formData.append("files", blob, `voice_${Date.now()}.webm`);
+            
+            voiceBtn.classList.remove("recording");
+            messageInput.placeholder = "Đang gửi...";
+            
+            try {
+                const res = await fetch("/api/upload", {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${token}` },
+                    body: formData,
+                });
+                const files = await res.json();
+                if (files.length) {
+                    const content = JSON.stringify({ type: "audio", url: files[0].url });
+                    window.socket.emit("privateMessage", { recipientId: window.currentChatContext.id, content });
+                }
+            } catch(err) { alert("Lỗi gửi voice"); }
+            stream.getTracks().forEach((t) => t.stop());
+            messageInput.placeholder = "Nhập tin nhắn...";
+          };
+          
+          mediaRecorder.start();
+          isRecording = true;
+          voiceBtn.classList.add("recording");
+          messageInput.placeholder = "Đang ghi âm (Bấm lại để gửi)...";
+        } catch (e) { alert("Không tìm thấy Micro!"); }
+      } else {
+        // Dừng ghi
+        mediaRecorder.stop();
+        isRecording = false;
+      }
+    });
+  }
+
+  // 12. CALL & VIDEO CALL (SỰ KIỆN NÚT BẤM) - SỬA LỖI
+  if (callBtn) callBtn.addEventListener("click", () => {
+      if(!window.currentChatContext.id) return;
+      alert("Đang gọi cho " + window.currentChatContext.name + "...");
+      window.socket.emit("callOffer", { recipientId: window.currentChatContext.id, type: "audio" });
+  });
+  
+  if (videoBtn) videoBtn.addEventListener("click", () => {
+      if(!window.currentChatContext.id) return;
+      alert("Đang gọi Video cho " + window.currentChatContext.name + "...");
+      window.socket.emit("callOffer", { recipientId: window.currentChatContext.id, type: "video" });
+  });
+
+  // 13. ICON / EMOJI - SỬA LỖI
+  const emojiBtn = document.getElementById("emoji-trigger");
+  const emojiPicker = document.getElementById("emoji-picker");
+  if (emojiBtn && emojiPicker) {
+    emojiBtn.addEventListener("click", (e) => { e.stopPropagation(); emojiPicker.classList.toggle("hidden"); });
+    
+    // Gán sự kiện click cho từng icon
+    document.querySelectorAll(".emoji-grid span").forEach(span => {
+        span.addEventListener("click", () => {
+            messageInput.value += span.innerText; // Thêm icon vào input
+            messageInput.focus();
+            emojiPicker.classList.add("hidden"); // Đóng bảng
+            // Cập nhật nút gửi
+            sendBtn.classList.remove("hidden");
+            heartBtn.classList.add("hidden");
+        });
+    });
+
+    document.addEventListener("click", (e) => { if(!emojiPicker.contains(e.target) && e.target !== emojiBtn) emojiPicker.classList.add("hidden"); });
+  }
+
+  // 14. ĐỔI MÀU NỀN (BACKGROUND) - SỬA LỖI
+  const setBtn = document.getElementById("chat-settings-btn");
+  const closeBgBtn = document.getElementById("close-bg-modal");
+  const saveBgBtn = document.getElementById("save-bg-btn");
+  
+  if(setBtn) setBtn.addEventListener("click", () => document.getElementById("bg-modal").classList.remove("hidden"));
+  if(closeBgBtn) closeBgBtn.addEventListener("click", () => document.getElementById("bg-modal").classList.add("hidden"));
+  
+  // Xử lý click chọn màu có sẵn (Event Listener cho class)
+  document.querySelectorAll(".bg-preset").forEach(preset => {
+      preset.addEventListener("click", () => {
+          const val = preset.getAttribute("data-bg");
+          applyBg(val);
+      });
+  });
+
+  // Xử lý nhập link ảnh
+  if(saveBgBtn) saveBgBtn.addEventListener("click", () => {
+      const url = document.getElementById("bg-url-input").value;
+      if(url) { applyBg(url); document.getElementById("bg-modal").classList.add("hidden"); }
+  });
+
+  function applyBg(val) {
+    chatContentContainer.style.background = val.includes("http") ? "none" : val;
+    if(val.includes("http")) chatContentContainer.style.backgroundImage = `url('${val}')`;
+    else chatContentContainer.style.backgroundImage = "none";
+    localStorage.setItem("chatBg", val);
+  }
+
+  // 15. TIM BAY & DELETE MSG
   if(heartBtn) heartBtn.addEventListener("click", () => {
     if (!window.currentChatContext.id) return;
     window.socket.emit("sendHeart", { recipientId: window.currentChatContext.id });
@@ -177,26 +348,12 @@ document.addEventListener("DOMContentLoaded", () => {
      if(confirm("Thu hồi?")) window.socket.emit("deleteMessage", { messageId: id, recipientId: window.currentChatContext.id });
   };
   window.socket.on("messageDeleted", ({ messageId }) => { const el = document.getElementById(`msg-${messageId}`); if(el) el.remove(); });
-
-  // Modal Logic
-  const setBtn = document.getElementById("chat-settings-btn");
-  const closeBgBtn = document.getElementById("close-bg-modal");
-  const saveBgBtn = document.getElementById("save-bg-btn");
-  if(setBtn) setBtn.addEventListener("click", () => document.getElementById("bg-modal").classList.remove("hidden"));
-  if(closeBgBtn) closeBgBtn.addEventListener("click", () => document.getElementById("bg-modal").classList.add("hidden"));
   
-  window.changeBg = (val) => {
-    chatContentContainer.style.background = val.includes("http") ? "none" : val;
-    if(val.includes("http")) chatContentContainer.style.backgroundImage = `url('${val}')`;
-    else chatContentContainer.style.backgroundImage = "none";
-    localStorage.setItem("chatBg", val);
-  };
-  if(saveBgBtn) saveBgBtn.addEventListener("click", () => {
-      const url = document.getElementById("bg-url-input").value;
-      if(url) { changeBg(url); document.getElementById("bg-modal").classList.add("hidden"); }
-  });
-
-  // Mobile Back
+  // ... Các logic phụ khác (Modal Group, Mobile Back)
   const backBtn = document.getElementById("mobile-back-btn");
   if(backBtn) backBtn.addEventListener("click", () => { chatContainer.classList.remove("mobile-active"); window.currentChatContext = { id: null }; });
+  
+  const createGroupBtn = document.getElementById("create-group-btn");
+  if(createGroupBtn) createGroupBtn.addEventListener("click", () => document.getElementById("group-modal").classList.remove("hidden"));
+  document.getElementById("close-group-modal").addEventListener("click", () => document.getElementById("group-modal").classList.add("hidden"));
 });
