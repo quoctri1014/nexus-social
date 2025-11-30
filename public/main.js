@@ -22,8 +22,8 @@ document.addEventListener("DOMContentLoaded", () => {
     type: "user",
   };
   let isSecretMode = false;
-  // ID CỦA AI TRONG DATABASE LÀ 1
-  const AI_BOT_ID = 1; 
+  // ID CỦA AI TRONG DATABASE LÀ 1 (Dựa trên SQL Dump)
+  const AI_BOT_ID = 1;
 
   // 3. DOM ELEMENTS
   const chatContainer = document.getElementById("main-container");
@@ -55,7 +55,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const saveBgBtn = document.getElementById("save-bg-btn");
   const themeToggle = document.getElementById("theme-toggle");
 
-  // 4. CÀI ĐẶT GIAO DIỆN
+  // 4. CÀI ĐẶT GIAO DIỆN (THEME & BACKGROUND)
   const currentTheme = localStorage.getItem("theme") || "dark";
   document.body.setAttribute("data-theme", currentTheme);
   if (themeToggle) {
@@ -76,64 +76,71 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // 5. LẤY THÔNG TIN NGƯỜI DÙNG (ME)
+  // Helper: Xử lý hiển thị Avatar AI và User
+  function getAvatarHtml(u) {
+    // Nếu là AI
+    if (u.id === AI_BOT_ID || u.username === "Trợ lý AI") {
+      // Trả về cả wrapper để CSS áp dụng flex-center
+      return `<div class="ai-icon-wrapper"><i class="fas fa-robot ai-avatar-icon"></i></div>`;
+    }
+    
+    // Nếu là User có avatar ảnh
+    if (u.avatar && u.avatar.trim() !== "" && !u.avatar.includes("avatar1.png")) {
+      const src = u.avatar.startsWith("http") || u.avatar.startsWith("data:") ? u.avatar : `/uploads/${u.avatar}`;
+      return `<img src="${src}" onerror="this.src='https://ui-avatars.com/api/?name=U'">`;
+    }
+    
+    // Avatar mặc định tạo từ tên
+    const n = u.nickname || u.username || "User";
+    return `<img src="https://ui-avatars.com/api/?name=${encodeURIComponent(n)}&background=random&color=fff&size=128&bold=true">`;
+  }
+
+  // 5. LẤY THÔNG TIN BẢN THÂN (ME)
   fetch("/api/me", {
     headers: { Authorization: `Bearer ${token}` },
   })
     .then((r) => r.json())
     .then((u) => {
-      window.myUserId = u.id; // Database trả về id
+      window.myUserId = u.id;
       window.myUsername = u.username;
       const navAvt = document.getElementById("nav-avatar");
-      if (navAvt) navAvt.src = getAvatar(u);
+      if (navAvt) {
+         // Nav avatar chỉ là thẻ img, nếu là AI (hiếm khi) thì ko load đc icon font
+         const n = u.nickname || u.username;
+         navAvt.src = u.avatar && !u.avatar.includes("avatar1.png") ? (u.avatar.startsWith("http")?u.avatar:`/uploads/${u.avatar}`) : `https://ui-avatars.com/api/?name=${encodeURIComponent(n)}`;
+      }
     });
-
-  // Helper: Xử lý Avatar
-  function getAvatar(u) {
-    // Sửa logic kiểm tra AI ID = 1
-    if (u.id === AI_BOT_ID || u.username === "Trợ lý AI")
-      return '<i class="fas fa-robot ai-avatar-icon"></i>';
-    
-    if (u.avatar && u.avatar.trim() !== "" && !u.avatar.includes("avatar1.png"))
-      return u.avatar.startsWith("http") || u.avatar.startsWith("data:") ? u.avatar : `/uploads/${u.avatar}`;
-    
-    const n = u.nickname || u.username || "User";
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(n)}&background=random&color=fff&size=128&bold=true`;
-  }
 
   function scrollToBottom() {
     if (messagesContainer) messagesContainer.scrollTop = messagesContainer.scrollHeight;
   }
 
-  // 6. DANH SÁCH USER (SOCKET: userList)
+  // 6. RENDER USER LIST (Sửa logic hiển thị avatar AI)
   window.socket.on("userList", (users) => {
     if (!userListDiv) return;
     userListDiv.innerHTML = "";
     window.allUsers = users; 
     
     users.forEach((u) => {
-      // SỬA QUAN TRỌNG: Dùng u.id thay vì u.userId
       if (u.id === window.myUserId) return; 
 
       const isActive = window.currentChatContext.id === u.id;
       const div = document.createElement("div");
       div.className = `user-item ${isActive ? "active" : ""}`;
 
-      const avt = getAvatar(u);
-      const imgHtml = avt.startsWith("<i")
-        ? `<div class="user-avatar ai-icon-wrapper">${avt}</div>`
-        : `<div class="user-avatar"><img src="${avt}" onerror="this.src='https://ui-avatars.com/api/?name=U'"></div>`;
-
-      // Sửa logic hiển thị trạng thái
+      const avatarContent = getAvatarHtml(u);
+      // Bọc trong div .user-avatar để CSS flex-shrink hoạt động
+      const avatarBlock = `<div class="user-avatar">${avatarContent}</div>`;
+      
       const isAI = u.id === AI_BOT_ID;
+
       div.innerHTML = `
-                ${imgHtml}
+                ${avatarBlock}
                 <div class="user-info">
                     <div class="user-name">${u.nickname || u.username}</div>
-                    <div class="user-preview">${isAI ? "Trợ lý ảo" : (u.online ? "Online" : "Offline")}</div>
+                    <div class="user-preview">${isAI ? "Luôn sẵn sàng" : (u.online ? "Online" : "Offline")}</div>
                 </div>`;
       
-      // Gán sự kiện click đúng cách
       div.onclick = () => selectChat(u);
       userListDiv.appendChild(div);
     });
@@ -141,16 +148,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // 7. CHỌN CUỘC TRÒ CHUYỆN (SELECT CHAT)
   function selectChat(user) {
-    // SỬA QUAN TRỌNG: Kiểm tra user.id
     if (!user || (!user.id && user.id !== 0)) return;
 
     window.currentChatContext = {
-      id: user.id, // Dùng id từ DB
+      id: user.id,
       name: user.nickname || user.username,
       type: "user",
     };
 
-    // Update Header
     const title = document.getElementById("chat-header-title");
     const status = document.getElementById("chat-status");
     if (title) title.textContent = window.currentChatContext.name;
@@ -158,23 +163,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const isAI = user.id === AI_BOT_ID;
 
     if (status)
-      status.textContent = isAI
-          ? "Luôn sẵn sàng"
-          : user.online
-          ? "Đang hoạt động"
-          : "Ngoại tuyến";
+      status.textContent = isAI ? "Trợ lý ảo thông minh" : (user.online ? "Đang hoạt động" : "Ngoại tuyến");
 
     // Update Header Avatar
     if (headerAvatarContainer) {
       headerAvatarContainer.innerHTML = "";
-      const avt = getAvatar(user);
-      if (avt.startsWith("<i")) {
-        headerAvatarContainer.className = "avatar-circle ai-icon-wrapper";
-        headerAvatarContainer.innerHTML = avt;
-      } else {
-        headerAvatarContainer.className = "avatar-circle";
-        headerAvatarContainer.innerHTML = `<img src="${avt}" onerror="this.src='https://ui-avatars.com/api/?name=C'">`;
-      }
+      headerAvatarContainer.className = "avatar-circle"; // Reset class
+      // getAvatarHtml trả về string html, insert vào là xong
+      headerAvatarContainer.innerHTML = getAvatarHtml(user);
     }
 
     // Reset UI
@@ -184,16 +180,15 @@ document.addEventListener("DOMContentLoaded", () => {
     if (chatContainer) chatContainer.classList.add("mobile-active");
 
     // Load History
-    window.socket.emit("loadPrivateHistory", {
-      recipientId: user.id, // Dùng user.id
-    });
+    window.socket.emit("loadPrivateHistory", { recipientId: user.id });
 
-    // Ẩn/Hiện nút Xóa & Gọi
+    // Ẩn/Hiện nút Xóa & Gọi (Ẩn gọi nếu là AI)
     if (deleteChatBtn) deleteChatBtn.style.display = isAI ? "none" : "block"; 
-    const callBtns = document.querySelectorAll(".tool-btn.call-action"); 
-    // Nếu có class call-action thì ẩn hiện, tạm thời ẩn id call-button
-    document.getElementById("call-button").style.display = isAI ? "none" : "block";
-    document.getElementById("video-call-button").style.display = isAI ? "none" : "block";
+    
+    const callBtn = document.getElementById("call-button");
+    const videoBtn = document.getElementById("video-call-button");
+    if(callBtn) callBtn.style.display = isAI ? "none" : "block";
+    if(videoBtn) videoBtn.style.display = isAI ? "none" : "block";
 
     // Reset Secret Mode
     isSecretMode = false;
@@ -216,7 +211,6 @@ document.addEventListener("DOMContentLoaded", () => {
   window.socket.on("newMessage", (msg) => {
     const isCurrent = msg.senderId === window.currentChatContext.id;
     const isMe = msg.senderId === window.myUserId;
-    // Sửa logic check AI
     const isAI = msg.senderId === AI_BOT_ID && window.currentChatContext.id === AI_BOT_ID;
 
     if (isCurrent || isMe || isAI) {
@@ -276,10 +270,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const val = messageInput.value.trim();
       if (!val || window.currentChatContext.id === null) return;
 
-      const msgData = {
-        recipientId: window.currentChatContext.id,
-        content: val,
-      };
+      const msgData = { recipientId: window.currentChatContext.id, content: val };
       if (isSecretMode) msgData.ttl = 10000;
 
       window.socket.emit("privateMessage", msgData);
@@ -302,7 +293,68 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // 10. TÍNH NĂNG KHÁC (Secret, Heart, Delete, Voice)
+  // 10. TÍNH NĂNG KHÁC (VOICE CHAT FIX)
+  if (voiceBtn) {
+    let mediaRecorder, audioChunks = [], isRecording = false;
+    voiceBtn.addEventListener("click", async () => {
+      if (!window.currentChatContext.id) return alert("Chọn người chat trước!");
+      
+      if (!isRecording) {
+        // BẮT ĐẦU GHI
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          mediaRecorder = new MediaRecorder(stream);
+          audioChunks = [];
+          
+          mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+          
+          mediaRecorder.onstop = async () => {
+            const blob = new Blob(audioChunks, { type: "audio/webm" });
+            const formData = new FormData();
+            // Đặt tên file
+            formData.append("files", blob, `voice_${Date.now()}.webm`);
+            
+            voiceBtn.classList.remove("recording");
+            messageInput.placeholder = "Đang gửi...";
+            
+            try {
+                // Upload file (Server tự xử lý Local hay Cloud)
+                const res = await fetch("/api/upload", {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${token}` },
+                    body: formData,
+                });
+                
+                if(!res.ok) throw new Error("Upload Failed");
+
+                const files = await res.json();
+                if (files.length) {
+                    const content = JSON.stringify({ type: "audio", url: files[0].url });
+                    window.socket.emit("privateMessage", { recipientId: window.currentChatContext.id, content });
+                }
+            } catch(err) {
+                alert("Lỗi gửi voice: " + err.message);
+                console.error(err);
+            }
+
+            stream.getTracks().forEach((t) => t.stop());
+            messageInput.placeholder = "Nhập tin nhắn...";
+          };
+          
+          mediaRecorder.start();
+          isRecording = true;
+          voiceBtn.classList.add("recording");
+          messageInput.placeholder = "Đang ghi âm (Bấm lần nữa để gửi)...";
+        } catch (e) { alert("Lỗi Micro: " + e.message); }
+      } else {
+        // DỪNG GHI VÀ GỬI
+        mediaRecorder.stop();
+        isRecording = false;
+      }
+    });
+  }
+
+  // CÁC TÍNH NĂNG PHỤ KHÁC (Secret, Heart, Delete...)
   if (secretBtn) {
     secretBtn.addEventListener("click", () => {
       isSecretMode = !isSecretMode;
@@ -343,10 +395,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   window.deleteMessage = (msgId) => {
     if (confirm("Thu hồi tin nhắn?")) {
-      window.socket.emit("deleteMessage", {
-        messageId: msgId,
-        recipientId: window.currentChatContext.id,
-      });
+      window.socket.emit("deleteMessage", { messageId: msgId, recipientId: window.currentChatContext.id });
     }
   };
   window.socket.on("messageDeleted", ({ messageId }) => {
@@ -367,47 +416,6 @@ document.addEventListener("DOMContentLoaded", () => {
       alert("Cuộc trò chuyện đã bị xóa.");
     }
   });
-
-  if (voiceBtn) {
-    let mediaRecorder, audioChunks = [], isRecording = false;
-    voiceBtn.addEventListener("click", async () => {
-      if (!window.currentChatContext.id) return alert("Chọn người chat trước!");
-      if (!isRecording) {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          mediaRecorder = new MediaRecorder(stream);
-          audioChunks = [];
-          mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
-          mediaRecorder.onstop = async () => {
-            const blob = new Blob(audioChunks, { type: "audio/webm" });
-            const formData = new FormData();
-            formData.append("files", blob, `voice_${Date.now()}.webm`);
-            voiceBtn.classList.remove("recording");
-            messageInput.placeholder = "Đang gửi...";
-            const res = await fetch("/api/upload", {
-              method: "POST",
-              headers: { Authorization: `Bearer ${token}` },
-              body: formData,
-            });
-            const files = await res.json();
-            if (files.length) {
-              const content = JSON.stringify({ type: "audio", url: files[0].url });
-              window.socket.emit("privateMessage", { recipientId: window.currentChatContext.id, content });
-            }
-            stream.getTracks().forEach((t) => t.stop());
-            messageInput.placeholder = "Nhập tin nhắn...";
-          };
-          mediaRecorder.start();
-          isRecording = true;
-          voiceBtn.classList.add("recording");
-          messageInput.placeholder = "Đang ghi âm...";
-        } catch (e) { alert("Lỗi Micro: " + e.message); }
-      } else {
-        mediaRecorder.stop();
-        isRecording = false;
-      }
-    });
-  }
 
   if (attachBtn) {
     attachBtn.addEventListener("click", () => {
@@ -457,7 +465,7 @@ document.addEventListener("DOMContentLoaded", () => {
         membersListDiv.innerHTML = "";
         if (window.allUsers)
           window.allUsers.forEach((u) => {
-            if (u.id !== window.myUserId && u.id !== AI_BOT_ID) { // Sửa u.userId thành u.id
+            if (u.id !== window.myUserId && u.id !== AI_BOT_ID) {
               const div = document.createElement("div");
               div.className = "member-option";
               div.innerHTML = `<label style="display:flex;align-items:center;gap:10px;width:100%"><input type="checkbox" value="${u.id}"><span>${u.nickname || u.username}</span></label>`;
