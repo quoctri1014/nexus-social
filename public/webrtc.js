@@ -1,267 +1,229 @@
 /**
- * public/webrtc.js - PHIÊN BẢN HOÀN CHỈNH (Realtime WebRTC)
+ * public/webrtc.js - PHIÊN BẢN CÓ NHẠC CHUÔNG & UI ĐẸP
  */
 
 document.addEventListener("DOMContentLoaded", () => {
-  // Đảm bảo chỉ chạy trên trang chat và socket đã kết nối
-  if (!window.socket || !window.location.pathname.endsWith("/chat.html"))
-    return;
+  if (!window.socket || !window.location.pathname.endsWith("/chat.html")) return;
 
+  // DOM Elements
   const callButton = document.getElementById("call-button");
   const videoCallButton = document.getElementById("video-call-button");
   const endCallButton = document.getElementById("end-call-button");
-  const callWindow = document.getElementById("call-window");
+  
+  const callWindow = document.getElementById("call-window"); // Màn hình gọi video
   const remoteVideo = document.getElementById("remoteVideo");
   const localVideo = document.getElementById("localVideo");
+  
+  // Modal cuộc gọi đến
+  const incomingModal = document.getElementById("incoming-call-modal");
+  const incomingAvatar = document.getElementById("incoming-avatar");
+  const incomingName = document.getElementById("incoming-name");
+  const btnAccept = document.getElementById("btn-accept-call");
+  const btnReject = document.getElementById("btn-reject-call");
+  const ringtone = document.getElementById("ringtone");
+
   const toggleMic = document.getElementById("toggle-mic");
   const toggleCam = document.getElementById("toggle-cam");
 
   let peerConnection = null;
   let localStream = null;
-  let currentRecipientId = null;
+  let currentCallerId = null; // ID người đang gọi mình
+  let currentRecipientId = null; // ID người mình đang gọi
 
-  // --- HÀM TẠO PEER CONNECTION ---
-  const createPeerConnection = (stream, recipientId) => {
-    // Sử dụng STUN server để NAT Traversal
+  // --- HÀM HELPER ---
+  const playRingtone = () => {
+      ringtone.currentTime = 0;
+      ringtone.play().catch(e => console.log("Cần tương tác để phát nhạc"));
+  };
+  const stopRingtone = () => {
+      ringtone.pause();
+      ringtone.currentTime = 0;
+  };
+
+  // --- WEBRTC CONFIG ---
+  const createPeerConnection = (stream) => {
     const pc = new RTCPeerConnection({
       iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
     });
+    if (stream) stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
-    // Gửi stream cục bộ đến peer
-    if (stream) {
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-    }
-
-    // Xử lý ICE Candidate (gửi thông tin kết nối qua socket)
     pc.onicecandidate = (e) => {
-      if (e.candidate) {
-        console.log("Sending ICE Candidate:", e.candidate);
-        window.socket.emit("sendICE", { recipientId, candidate: e.candidate });
+      if (e.candidate && (currentRecipientId || currentCallerId)) {
+        window.socket.emit("sendICE", { 
+            recipientId: currentRecipientId || currentCallerId, 
+            candidate: e.candidate 
+        });
       }
     };
 
-    // Xử lý khi nhận được stream từ peer
     pc.ontrack = (e) => {
-      console.log("Received remote track.");
       if (remoteVideo.srcObject !== e.streams[0]) {
         remoteVideo.srcObject = e.streams[0];
       }
     };
-
-    // Xử lý sự kiện thay đổi trạng thái kết nối
-    pc.onconnectionstatechange = (e) => {
-      console.log(`Connection state: ${pc.connectionState}`);
-      if (pc.connectionState === "failed" || pc.connectionState === "closed") {
-        hangUp(false); // Tự động ngắt khi lỗi
-        alert("Kết nối cuộc gọi thất bại hoặc bị ngắt.");
-      }
-    };
-
     return pc;
   };
 
-  // --- HÀM KHỞI TẠO CUỘC GỌI (CALLER) ---
+  // --- NGƯỜI GỌI (CALLER) ---
   const startCall = async (isVideo) => {
     if (!window.currentChatContext.id) return alert("Chọn người để gọi.");
     currentRecipientId = window.currentChatContext.id;
 
-    // Reset nút điều khiển
-    toggleMic.style.background = "#333";
-    toggleCam.style.background = "#333";
-
     try {
-      // Lấy media cục bộ
-      localStream = await navigator.mediaDevices.getUserMedia({
-        video: isVideo,
-        audio: true,
-      });
+      localStream = await navigator.mediaDevices.getUserMedia({ video: isVideo, audio: true });
       localVideo.srcObject = localStream;
-      callWindow.classList.remove("hidden");
+      callWindow.classList.remove("hidden"); // Hiện màn hình gọi
 
-      peerConnection = createPeerConnection(localStream, currentRecipientId);
-
-      // Tạo Offer
-      const offer = await peerConnection.createOffer({
-        offerToReceiveVideo: isVideo,
-        offerToReceiveAudio: true,
-      });
+      peerConnection = createPeerConnection(localStream);
+      const offer = await peerConnection.createOffer();
       await peerConnection.setLocalDescription(offer);
 
-      // Gửi Offer qua socket
       window.socket.emit("callOffer", {
         recipientId: currentRecipientId,
         offer: peerConnection.localDescription,
         isVideo,
       });
-      console.log("Sent Call Offer.");
     } catch (err) {
-      console.error("Lỗi truy cập Camera/Mic:", err);
-      alert("Lỗi truy cập Camera/Mic. Vui lòng kiểm tra quyền truy cập.");
-      hangUp(false);
+      alert("Lỗi truy cập Camera/Mic: " + err.message);
+      hangUp();
     }
   };
 
-  // --- HÀM KẾT THÚC CUỘC GỌI ---
-  const hangUp = (emit = true) => {
-    console.log("Hanging up call. Emit:", emit);
-    // Dừng tracks media
-    if (localStream) localStream.getTracks().forEach((t) => t.stop());
+  // --- NGƯỜI NHẬN (RECEIVER) ---
+  window.socket.on("callOffer", ({ senderId, senderName, senderAvatar, offer, isVideo }) => {
+    // Nếu đang có cuộc gọi khác -> Bận
+    if (currentCallerId || currentRecipientId) {
+      window.socket.emit("callReject", { callerId: senderId, reason: "BUSY" });
+      return;
+    }
 
-    // Đóng Peer Connection
+    // HIỆN MODAL CUỘC GỌI ĐẾN
+    currentCallerId = senderId;
+    incomingName.textContent = senderName || "Người dùng Nexus";
+    incomingAvatar.src = senderAvatar || "https://ui-avatars.com/api/?name=User";
+    incomingModal.classList.remove("hidden");
+    playRingtone();
+
+    // Xử lý nút Chấp nhận
+    btnAccept.onclick = async () => {
+        stopRingtone();
+        incomingModal.classList.add("hidden");
+        
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({ video: isVideo, audio: true });
+            localVideo.srcObject = localStream;
+            callWindow.classList.remove("hidden");
+
+            peerConnection = createPeerConnection(localStream);
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+            
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+
+            window.socket.emit("callAnswer", {
+                recipientId: senderId,
+                answer: peerConnection.localDescription
+            });
+        } catch (e) {
+            alert("Lỗi kết nối: " + e.message);
+            hangUp();
+        }
+    };
+
+    // Xử lý nút Từ chối
+    btnReject.onclick = () => {
+        stopRingtone();
+        incomingModal.classList.add("hidden");
+        window.socket.emit("callReject", { callerId: senderId, reason: "REJECT" });
+        currentCallerId = null;
+        
+        // Thêm tin nhắn thông báo (Local only)
+        if(window.appendMessage) {
+            window.appendMessage({
+                senderId: 0, // System
+                content: JSON.stringify({type:'text', text: `📞 Bạn đã từ chối cuộc gọi từ ${senderName}`}),
+                createdAt: new Date()
+            });
+        }
+    };
+  });
+
+  // --- XỬ LÝ CÁC SỰ KIỆN KHÁC ---
+  window.socket.on("callAnswer", async ({ answer }) => {
     if (peerConnection) {
-      peerConnection.close();
-      peerConnection = null;
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
     }
+  });
 
+  window.socket.on("receiveICE", async ({ candidate }) => {
+    if (peerConnection) {
+      await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+    }
+  });
+
+  window.socket.on("callEnd", () => {
+    alert("Cuộc gọi đã kết thúc.");
+    hangUp();
+  });
+
+  window.socket.on("callReject", ({ reason }) => {
+    stopRingtone(); // Dừng nhạc nếu đang đợi
+    alert(reason === "BUSY" ? "Người dùng đang bận." : "Người dùng đã từ chối cuộc gọi.");
+    hangUp();
+  });
+  
+  // Sự kiện khi đối phương Offline
+  window.socket.on("userOffline", () => {
+      alert("Người dùng hiện không trực tuyến. Đã gửi thông báo cuộc gọi nhỡ.");
+      hangUp();
+  });
+
+  // --- KẾT THÚC CUỘC GỌI ---
+  const hangUp = () => {
+    stopRingtone();
+    if (localStream) localStream.getTracks().forEach((t) => t.stop());
+    if (peerConnection) peerConnection.close();
+    
+    peerConnection = null;
     localStream = null;
-    localVideo.srcObject = null;
-    remoteVideo.srcObject = null;
+    
     callWindow.classList.add("hidden");
+    incomingModal.classList.add("hidden");
 
-    // Gửi tín hiệu kết thúc qua socket
-    if (emit && currentRecipientId) {
-      window.socket.emit("callEnd", { recipientId: currentRecipientId });
+    // Gửi tín hiệu kết thúc cho đối phương
+    const targetId = currentRecipientId || currentCallerId;
+    if (targetId) {
+      window.socket.emit("callEnd", { recipientId: targetId });
     }
+    
     currentRecipientId = null;
+    currentCallerId = null;
   };
 
-  // --- LISTENERS NÚT ĐIỀU KHIỂN ---
-  callButton.addEventListener("click", () => startCall(false)); // Gọi thoại
-  videoCallButton.addEventListener("click", () => startCall(true)); // Video Call
-  endCallButton.addEventListener("click", () => hangUp(true)); // Kết thúc
+  // --- DOM EVENTS ---
+  callButton.addEventListener("click", () => startCall(false));
+  videoCallButton.addEventListener("click", () => startCall(true));
+  endCallButton.addEventListener("click", () => hangUp());
 
   toggleMic.addEventListener("click", () => {
     if (localStream) {
       const track = localStream.getAudioTracks()[0];
-      if (track) {
-        track.enabled = !track.enabled;
-        // Cập nhật giao diện
-        toggleMic.style.background = track.enabled ? "#333" : "#ff4757";
-        toggleMic.title = track.enabled ? "Tắt Mic" : "Bật Mic";
-      }
+      track.enabled = !track.enabled;
+      toggleMic.style.background = track.enabled ? "rgba(255,255,255,0.2)" : "#ef4444";
     }
   });
 
   toggleCam.addEventListener("click", () => {
     if (localStream) {
       const track = localStream.getVideoTracks()[0];
-      if (track) {
-        track.enabled = !track.enabled;
-        // Cập nhật giao diện
-        toggleCam.style.background = track.enabled ? "#333" : "#ff4757";
-        toggleCam.title = track.enabled ? "Tắt Cam" : "Bật Cam";
-      }
+      track.enabled = !track.enabled;
+      toggleCam.style.background = track.enabled ? "rgba(255,255,255,0.2)" : "#ef4444";
     }
   });
-
-  // --- SOCKET EVENTS (RECEIVER) ---
-
-  // Xử lý khi nhận được Offer (Cuộc gọi đến)
-  window.socket.on("callOffer", async ({ senderId, offer, isVideo }) => {
-    if (currentRecipientId) {
-      // Đã có cuộc gọi khác đang diễn ra
-      window.socket.emit("callReject", { callerId: senderId, reason: "BUSY" });
-      return;
-    }
-
-    // Hỏi người dùng có chấp nhận cuộc gọi không
-    const chatTitle =
-      document.getElementById("chat-header-title")?.textContent || "Bạn bè";
-    if (
-      !confirm(
-        `Có cuộc gọi ${isVideo ? "Video" : "Thoại"} từ ${chatTitle}. Trả lời?`
-      )
-    ) {
-      window.socket.emit("callReject", {
-        callerId: senderId,
-        reason: "REJECT",
-      });
-      return;
-    }
-
-    currentRecipientId = senderId;
-
-    // Reset nút điều khiển
-    toggleMic.style.background = "#333";
-    toggleCam.style.background = "#333";
-
-    try {
-      // Lấy media cục bộ
-      localStream = await navigator.mediaDevices.getUserMedia({
-        video: isVideo,
-        audio: true,
-      });
-      localVideo.srcObject = localStream;
-      callWindow.classList.remove("hidden");
-
-      // Tạo Peer Connection, thêm stream cục bộ
-      peerConnection = createPeerConnection(localStream, senderId);
-
-      // Đặt Remote Description (Offer)
-      await peerConnection.setRemoteDescription(
-        new RTCSessionDescription(offer)
-      );
-
-      // Tạo Answer
-      const answer = await peerConnection.createAnswer();
-      await peerConnection.setLocalDescription(answer);
-
-      // Gửi Answer qua socket
-      window.socket.emit("callAnswer", {
-        recipientId: senderId,
-        answer: peerConnection.localDescription,
-      });
-      console.log("Sent Call Answer.");
-    } catch (e) {
-      console.error("Lỗi khi trả lời cuộc gọi:", e);
-      alert("Lỗi khi trả lời cuộc gọi. Vui lòng thử lại.");
-      hangUp(false);
-    }
-  });
-
-  // Xử lý khi nhận được Answer
-  window.socket.on("callAnswer", async ({ answer }) => {
-    if (peerConnection) {
-      console.log("Received Call Answer.");
-      await peerConnection.setRemoteDescription(
-        new RTCSessionDescription(answer)
-      );
-    }
-  });
-
-  // Xử lý khi nhận được ICE Candidate
-  window.socket.on("receiveICE", async ({ candidate }) => {
-    if (peerConnection && candidate) {
-      try {
-        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-        console.log("Added ICE Candidate.");
-      } catch (e) {
-        console.error("Error adding received ICE candidate:", e);
-      }
-    }
-  });
-
-  // Xử lý khi đối phương kết thúc cuộc gọi
-  window.socket.on("callEnd", () => {
-    alert("Cuộc gọi đã kết thúc.");
-    hangUp(false);
-  });
-
-  // Xử lý khi cuộc gọi bị từ chối
-  window.socket.on("callReject", ({ reason }) => {
-    const msg =
-      reason === "BUSY"
-        ? "Người dùng đang bận cuộc gọi khác."
-        : "Người dùng từ chối cuộc gọi.";
-    alert(`Cuộc gọi bị từ chối: ${msg}`);
-    hangUp(false); // Ngắt kết nối cục bộ
-  });
-
+  
   // Context check: Ẩn nút gọi khi chat với AI
   window.addEventListener("contextChanged", () => {
-    const canCall =
-      window.currentChatContext.type === "user" &&
-      window.currentChatContext.id !== 0; // AI User ID là 0
+    const canCall = window.currentChatContext.type === "user" && window.currentChatContext.id !== 0;
     callButton.style.display = canCall ? "inline-block" : "none";
     videoCallButton.style.display = canCall ? "inline-block" : "none";
   });
