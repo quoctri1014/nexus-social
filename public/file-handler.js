@@ -1,9 +1,8 @@
 /**
- * public/file-handler.js - PHIÊN BẢN HOÀN CHỈNH (FIX LỖI UPLOAD & XỬ LÝ JSON)
+ * public/file-handler.js - PHIÊN BẢN FINAL (Giao diện đẹp + Fix lỗi lặp tin nhắn)
  */
 
 document.addEventListener("DOMContentLoaded", () => {
-  // Chỉ chạy ở trang chat
   if (!window.location.pathname.endsWith("chat.html")) return;
 
   const fileModal = document.getElementById("file-modal");
@@ -14,113 +13,105 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let filesToSend = [];
 
-  // 1. Hàm mở Modal (Được gọi từ main.js)
+  // 1. Mở Modal
   window.openFileModal = () => {
-    if (!window.currentChatContext.id)
-      return alert("Vui lòng chọn người để gửi file.");
+    if (!window.currentChatContext.id) return alert("Vui lòng chọn người để gửi file.");
     fileModal.classList.remove("hidden");
-    filesToSend = []; // Reset list
+    filesToSend = [];
     fileInput.value = "";
     renderSelectedFiles();
   };
 
-  // 2. Render danh sách file đã chọn trong Modal
+  // 2. Render danh sách file (Giao diện thẻ đẹp)
   const renderSelectedFiles = () => {
     selectedFilesList.innerHTML = "";
     if (filesToSend.length === 0) {
-      selectedFilesList.innerHTML =
-        '<p style="color:#888; text-align:center;">Chưa chọn file nào.</p>';
+      selectedFilesList.innerHTML = '<p style="color:#94a3b8; text-align:center; font-size:14px; margin-top:10px;">Chưa chọn file nào.</p>';
       sendFileButton.disabled = true;
       sendFileButton.textContent = "Gửi ngay";
+      sendFileButton.style.opacity = "0.5";
       return;
     }
+    
+    sendFileButton.disabled = false;
+    sendFileButton.style.opacity = "1";
+    sendFileButton.textContent = `Gửi ${filesToSend.length} tệp`;
 
     filesToSend.forEach((file) => {
       const div = document.createElement("div");
       div.className = "file-list-item";
-      // Chỉnh style để dễ nhìn trong modal box
-      div.style.padding = "8px";
-      div.style.borderBottom = "1px solid rgba(255,255,255,0.1)";
-      div.style.textAlign = "left";
-      div.textContent = `${file.name} (${(file.size / 1024 / 1024).toFixed(
-        2
-      )} MB)`;
+      
+      // Tự động chọn icon theo loại file
+      let iconClass = "fas fa-file";
+      if (file.type.startsWith("image/")) iconClass = "fas fa-image";
+      else if (file.type.startsWith("video/")) iconClass = "fas fa-video";
+      else if (file.type.startsWith("audio/")) iconClass = "fas fa-music";
+
+      div.innerHTML = `
+        <div class="file-info-icon"><i class="${iconClass}"></i></div>
+        <div class="file-info-name">${file.name}</div>
+        <div style="font-size:12px; color:#94a3b8;">${(file.size / 1024 / 1024).toFixed(2)} MB</div>
+      `;
       selectedFilesList.appendChild(div);
     });
-    sendFileButton.disabled = false;
-    sendFileButton.textContent = `Gửi (${filesToSend.length} file)`;
   };
 
-  // 3. Sự kiện chọn file từ máy
+  // 3. Sự kiện chọn file
   fileInput?.addEventListener("change", (e) => {
     filesToSend = Array.from(e.target.files);
     renderSelectedFiles();
   });
 
-  // 4. Sự kiện đóng Modal
   cancelFileButton?.addEventListener("click", () => {
     fileModal.classList.add("hidden");
   });
 
-  // 5. Gửi File (Upload -> Get Link -> Socket)
+  // 4. Gửi File (Logic Upload + Socket)
   sendFileButton?.addEventListener("click", async () => {
     if (filesToSend.length === 0 || !window.currentChatContext.id) return;
 
     sendFileButton.textContent = "Đang tải lên...";
     sendFileButton.disabled = true;
+    sendFileButton.style.opacity = "0.7";
 
     const formData = new FormData();
     filesToSend.forEach((f) => formData.append("files", f));
 
     try {
       const token = localStorage.getItem("token");
-      // Upload lên Server
+      
+      // Upload
       const res = await fetch("/api/upload", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
 
-      // --- ĐOẠN SỬA LỖI QUAN TRỌNG ---
-      // Kiểm tra nếu response không phải JSON (ví dụ HTML báo lỗi 500)
+      // Kiểm tra lỗi Server trả về HTML thay vì JSON (Lỗi 500/502)
       const contentType = res.headers.get("content-type");
       if (!contentType || !contentType.includes("application/json")) {
-          throw new Error("Lỗi Server: Cấu hình Cloudinary chưa đúng hoặc file quá lớn.");
+          throw new Error("Lỗi Server: Cấu hình Cloudinary sai hoặc file quá lớn.");
       }
       
       const uploadedFiles = await res.json(); 
-      
       if (!res.ok) throw new Error(uploadedFiles.message || "Upload thất bại");
-      // -------------------------------
 
-      // Gửi từng file qua Socket
+      // Gửi Socket (Không tự appendMessage để tránh lặp)
       uploadedFiles.forEach((fileData) => {
-        const msgContent = JSON.stringify(fileData); // Đóng gói thành JSON
-
-        // Gửi Socket
+        const msgContent = JSON.stringify(fileData);
         if (window.currentChatContext.type === "user") {
           window.socket.emit("privateMessage", {
             recipientId: window.currentChatContext.id,
             content: msgContent,
           });
         }
-
-        // Hiển thị ngay lên màn hình của mình (dùng hàm từ main.js)
-        if (window.appendMessage) {
-          window.appendMessage({
-            senderId: window.myUserId,
-            content: msgContent,
-            createdAt: new Date(),
-          });
-        }
       });
 
-      // Thành công -> Đóng Modal
+      // Xong
       fileModal.classList.add("hidden");
-      // alert(`Đã gửi thành công ${uploadedFiles.length} file!`);
     } catch (error) {
       console.error(error);
-      alert("Lỗi Gửi File: " + error.message);
+      alert("Lỗi: " + error.message);
     } finally {
       sendFileButton.textContent = "Gửi ngay";
       sendFileButton.disabled = false;
