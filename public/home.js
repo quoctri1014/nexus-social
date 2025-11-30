@@ -64,30 +64,20 @@ document.addEventListener("DOMContentLoaded", async () => {
       const avatar = getAvatarDisplay(currentUser);
       const name = currentUser.nickname || currentUser.username;
 
-      // Update Navbar
       if(document.getElementById("nav-avatar")) document.getElementById("nav-avatar").src = avatar;
       if(document.getElementById("nav-username")) document.getElementById("nav-username").textContent = name;
-      
-      // Update Sidebar
       if(document.getElementById("sidebar-avatar")) document.getElementById("sidebar-avatar").src = avatar;
       if(document.getElementById("sidebar-name")) document.getElementById("sidebar-name").textContent = name;
       if(document.getElementById("sidebar-bio")) document.getElementById("sidebar-bio").textContent = currentUser.bio || "Chưa có tiêu sự";
 
-      // Update Story avatar
       if (document.getElementById("story-my-avatar")) document.getElementById("story-my-avatar").src = avatar;
-      
-      // Update Create Post avatar
       if (document.getElementById("cp-avatar")) document.getElementById("cp-avatar").src = avatar;
-      
-      // Update Modal preview
       if (document.getElementById("edit-avatar-preview")) document.getElementById("edit-avatar-preview").src = avatar;
 
-      // Update detailed info
       updateSidebarRow("sidebar-location", "sidebar-location-row", currentUser.location);
       updateSidebarRow("sidebar-work", "sidebar-work-row", currentUser.work);
       updateSidebarRow("sidebar-edu", "sidebar-edu-row", currentUser.education);
       
-      // Fill edit form
       if(document.getElementById("edit-nickname")) document.getElementById("edit-nickname").value = currentUser.nickname || "";
       if(document.getElementById("edit-bio")) document.getElementById("edit-bio").value = currentUser.bio || "";
       if(document.getElementById("edit-location")) document.getElementById("edit-location").value = currentUser.location || "";
@@ -96,7 +86,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     } catch (e) {
       console.error("Error loading profile:", e);
-      alert("Lỗi tải hồ sơ");
     }
   }
 
@@ -142,7 +131,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   if(closeX) closeX.addEventListener("click", closeProfileModal);
   if(cancelBtn) cancelBtn.addEventListener("click", closeProfileModal);
   
-  // Avatar upload preview
   if(editAvatarInput) {
     editAvatarInput.addEventListener("change", (e) => {
       if (e.target.files[0]) {
@@ -152,7 +140,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
-  // Save profile changes
   if(saveBtn) {
     saveBtn.addEventListener("click", async () => {
       saveBtn.textContent = "Đang lưu...";
@@ -160,7 +147,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       let finalAvatarUrl = currentUser.avatar;
       
       try {
-        // Upload avatar nếu có file mới
         if (newAvatarFile) {
           const fd = new FormData();
           fd.append("files", newAvatarFile);
@@ -173,7 +159,6 @@ document.addEventListener("DOMContentLoaded", async () => {
           if(files.length > 0) finalAvatarUrl = files[0].url;
         }
 
-        // Cập nhật profile
         const updateData = {
           nickname: document.getElementById("edit-nickname").value.trim(),
           bio: document.getElementById("edit-bio").value.trim(),
@@ -240,7 +225,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const timeAgo = formatTimeAgo(post.createdAt);
     
     return `
-      <div class="post-card">
+      <div class="post-card" data-post-id="${post.id}">
         <div class="post-header">
           <img src="${avatar}" alt="Avatar">
           <div class="post-info">
@@ -251,16 +236,36 @@ document.addEventListener("DOMContentLoaded", async () => {
         <div class="post-content">${post.content || ""}</div>
         ${mediaHtml}
         <div class="post-stats">
-          <span>${post.likes} Thích</span>
+          <span>
+            <span class="like-count">${post.likes || 0}</span> Thích
+          </span>
+          <span>
+            <span class="comment-count">0</span> Bình luận
+          </span>
+          <span>
+            <span class="share-count">0</span> Chia sẻ
+          </span>
         </div>
         <div class="post-actions">
-          <div class="action-btn" onclick="likePost(${post.id})">
+          <div class="action-btn like-btn" onclick="likePost(${post.id})">
             <i class="far fa-thumbs-up"></i> Thích
           </div>
-          <div class="action-btn" onclick="viewComments(${post.id})">
+          <div class="action-btn" onclick="openCommentModal(${post.id})">
             <i class="far fa-comment-alt"></i> Bình luận
           </div>
+          <div class="action-btn" onclick="sharePost(${post.id})">
+            <i class="fas fa-share"></i> Chia sẻ
+          </div>
         </div>
+        <div class="reactions-bar hidden" id="reactions-${post.id}" style="padding: 10px; display: flex; gap: 5px; justify-content: center; background: #f0f2f5; border-radius: 8px; margin: 10px 15px 0;">
+          <button class="reaction-btn" onclick="addReaction(${post.id}, 'like')" title="Thích">👍</button>
+          <button class="reaction-btn" onclick="addReaction(${post.id}, 'love')" title="Yêu thích">❤️</button>
+          <button class="reaction-btn" onclick="addReaction(${post.id}, 'haha')" title="Haha">😂</button>
+          <button class="reaction-btn" onclick="addReaction(${post.id}, 'wow')" title="Wow">😮</button>
+          <button class="reaction-btn" onclick="addReaction(${post.id}, 'sad')" title="Buồn">😢</button>
+          <button class="reaction-btn" onclick="addReaction(${post.id}, 'angry')" title="Tức giận">😠</button>
+        </div>
+        <div class="comments-section hidden" id="comments-${post.id}" style="padding: 15px; border-top: 1px solid #e5e7eb;"></div>
       </div>
     `;
   }
@@ -295,7 +300,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       try {
         let imageUrl = null;
 
-        // Upload image nếu có
         if (selectedPostImage) {
           const fd = new FormData();
           fd.append("files", selectedPostImage);
@@ -308,7 +312,6 @@ document.addEventListener("DOMContentLoaded", async () => {
           if(files.length > 0) imageUrl = files[0].url;
         }
 
-        // Create post
         const res = await fetch("/api/posts/create", {
           method: "POST",
           headers: {
@@ -339,7 +342,191 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
-  // ===== 6. LOAD CONTACTS =====
+  // ===== 6. REACTIONS (LIKE, LOVE, etc.) =====
+  window.addReaction = async (postId, type) => {
+    try {
+      const res = await fetch(`/api/posts/${postId}/react`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ type })
+      });
+
+      if (res.ok) {
+        hideReactionBar(postId);
+        await loadPosts();
+      }
+    } catch (e) {
+      console.error("Error adding reaction:", e);
+    }
+  };
+
+  window.likePost = (postId) => {
+    const reactionsBar = document.getElementById(`reactions-${postId}`);
+    if (reactionsBar.classList.contains("hidden")) {
+      reactionsBar.classList.remove("hidden");
+    } else {
+      reactionsBar.classList.add("hidden");
+    }
+  };
+
+  function hideReactionBar(postId) {
+    const reactionsBar = document.getElementById(`reactions-${postId}`);
+    if (reactionsBar) {
+      reactionsBar.classList.add("hidden");
+    }
+  }
+
+  // ===== 7. COMMENTS =====
+  const commentModal = document.createElement("div");
+  commentModal.id = "comment-modal";
+  commentModal.className = "modal-backdrop hidden";
+  commentModal.innerHTML = `
+    <div class="modal-content profile-edit-box" style="width: 500px;">
+      <div class="modal-header">
+        <h2>Bình luận</h2>
+        <i class="fas fa-times" id="close-comment-modal" style="cursor: pointer; color: #65676b;"></i>
+      </div>
+      <div class="modal-body" style="max-height: 400px; overflow-y: auto;">
+        <div id="comments-list"></div>
+      </div>
+      <div class="modal-footer" style="padding: 15px; border-top: 1px solid #e5e7eb; display: flex; gap: 10px;">
+        <input type="text" id="comment-input" placeholder="Viết bình luận..." style="flex: 1; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; background: var(--bg-body); color: var(--text-main);">
+        <button id="submit-comment-btn" class="btn-primary">Gửi</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(commentModal);
+
+  let currentCommentPostId = null;
+
+  window.openCommentModal = async (postId) => {
+    currentCommentPostId = postId;
+    commentModal.classList.remove("hidden");
+    await loadComments(postId);
+  };
+
+  document.getElementById("close-comment-modal").addEventListener("click", () => {
+    commentModal.classList.add("hidden");
+  });
+
+  async function loadComments(postId) {
+    try {
+      const res = await fetch(`/api/posts/${postId}/comments`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (!res.ok) throw new Error("Failed to load comments");
+
+      const comments = await res.json();
+      const commentsList = document.getElementById("comments-list");
+      const postCard = document.querySelector(`[data-post-id="${postId}"]`);
+      
+      if (postCard) {
+        const commentCount = postCard.querySelector(".comment-count");
+        commentCount.textContent = comments.length;
+      }
+
+      commentsList.innerHTML = "";
+
+      if (comments.length === 0) {
+        commentsList.innerHTML = '<div style="text-align: center; padding: 20px; color: #65676b;">Chưa có bình luận nào</div>';
+      } else {
+        comments.forEach(c => {
+          const avatar = getAvatarDisplay(c);
+          const timeAgo = formatTimeAgo(c.createdAt);
+          commentsList.innerHTML += `
+            <div style="padding: 10px; border-bottom: 1px solid #e5e7eb;">
+              <div style="display: flex; gap: 10px;">
+                <img src="${avatar}" alt="Avatar" style="width: 36px; height: 36px; border-radius: 50%; object-fit: cover;">
+                <div style="flex: 1;">
+                  <div style="background: #f0f2f5; padding: 10px; border-radius: 8px;">
+                    <h4 style="margin: 0; font-size: 14px; font-weight: 600; color: var(--text-main);">${c.nickname || c.username}</h4>
+                    <p style="margin: 5px 0 0; font-size: 14px; color: var(--text-main);">${c.content}</p>
+                  </div>
+                  <span style="font-size: 12px; color: #65676b; margin-top: 5px; display: block;">${timeAgo}</span>
+                </div>
+                ${c.userId === currentUser.id ? `<i class="fas fa-trash" style="cursor: pointer; color: #e41e3f;" onclick="deleteComment(${c.id})"></i>` : ''}
+              </div>
+            </div>
+          `;
+        });
+      }
+    } catch (e) {
+      console.error("Error loading comments:", e);
+    }
+  }
+
+  document.getElementById("submit-comment-btn").addEventListener("click", async () => {
+    const content = document.getElementById("comment-input").value.trim();
+    
+    if (!content) {
+      alert("Vui lòng nhập bình luận");
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/posts/${currentCommentPostId}/comments`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ content })
+      });
+
+      if (res.ok) {
+        document.getElementById("comment-input").value = "";
+        await loadComments(currentCommentPostId);
+      }
+    } catch (e) {
+      console.error("Error posting comment:", e);
+    }
+  });
+
+  window.deleteComment = async (commentId) => {
+    if (!confirm("Bạn có chắc chắn muốn xóa bình luận này?")) return;
+
+    try {
+      const res = await fetch(`/api/comments/${commentId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (res.ok) {
+        await loadComments(currentCommentPostId);
+      }
+    } catch (e) {
+      console.error("Error deleting comment:", e);
+    }
+  };
+
+  // ===== 8. SHARE =====
+  window.sharePost = async (postId) => {
+    try {
+      const post = document.querySelector(`[data-post-id="${postId}"]`);
+      if (!post) return;
+
+      const postContent = post.querySelector(".post-content").textContent;
+      const postImage = post.querySelector(".post-image")?.src;
+
+      // Copy to clipboard
+      const postUrl = `${window.location.origin}/home.html?post=${postId}`;
+      navigator.clipboard.writeText(`Chia sẻ: ${postContent}\n${postUrl}`);
+
+      // Update share count
+      const shareCount = post.querySelector(".share-count");
+      shareCount.textContent = parseInt(shareCount.textContent) + 1;
+
+      alert("Đã sao chép liên kết chia sẻ!");
+    } catch (e) {
+      console.error("Error sharing post:", e);
+    }
+  };
+
+  // ===== 9. LOAD CONTACTS =====
   function loadContacts() {
     const contactList = document.getElementById("contact-list");
     if (!contactList) return;
@@ -367,7 +554,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
-  // ===== 7. LOAD NOTIFICATIONS =====
+  // ===== 10. LOAD NOTIFICATIONS =====
   async function loadNotifications() {
     try {
       const res = await fetch("/api/notifications", {
@@ -389,7 +576,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  // ===== 8. STORIES =====
+  // ===== 11. STORIES =====
   const storyInput = document.getElementById("story-input");
   if(storyInput) {
     storyInput.addEventListener("change", async (e) => {
@@ -406,8 +593,19 @@ document.addEventListener("DOMContentLoaded", async () => {
           const files = await upRes.json();
           
           if(files.length > 0) {
-            // TODO: Create story in database
-            alert("Story đã được tạo!");
+            const createRes = await fetch("/api/stories/create", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`
+              },
+              body: JSON.stringify({ image: files[0].url })
+            });
+
+            if (createRes.ok) {
+              alert("Story đã được tạo!");
+              storyInput.value = "";
+            }
           }
         } catch (e) {
           alert("Lỗi tải story");
@@ -422,25 +620,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     window.location.href = "/index.html"; 
   };
 
-  window.likePost = async (postId) => {
-    try {
-      const res = await fetch(`/api/posts/${postId}/like`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        await loadPosts();
-      }
-    } catch (e) {
-      console.error("Error liking post:", e);
-    }
-  };
-
-  window.viewComments = (postId) => {
-    // TODO: Implement comments modal
-    alert("Tính năng bình luận sẽ sớm được cập nhật");
-  };
-
   // ===== INITIALIZE =====
   await loadMyProfile();
   await loadPosts();
@@ -449,4 +628,5 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Refresh every 30 seconds
   setInterval(loadNotifications, 30000);
+  setInterval(loadPosts, 60000);
 });
