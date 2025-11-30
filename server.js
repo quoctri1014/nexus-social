@@ -29,7 +29,7 @@ if (GEMINI_API_KEY) {
   try {
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
     // Sử dụng model Flash cho tốc độ phản hồi nhanh
-    aiModel = genAI.getGenerativeModel({ model: "gemini-pro" });
+    aiModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     console.log("✅ AI Model initialized (Gemini 1.5 Flash)");
   } catch (err) {
     console.error("⚠️ Lỗi khởi tạo AI:", err.message);
@@ -245,7 +245,7 @@ async function handleAIChat(msg, uid, socket) {
   if (!aiModel) {
     return socket.emit("newMessage", { 
         senderId: AI_BOT_ID, 
-        content: "Hệ thống AI đang bảo trì hoặc chưa cấu hình API Key.", 
+        content: "Hệ thống AI chưa sẵn sàng (Lỗi cấu hình API).", 
         createdAt: new Date() 
     });
   }
