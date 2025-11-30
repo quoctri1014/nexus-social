@@ -35,19 +35,26 @@ document.addEventListener("DOMContentLoaded", () => {
     window.location.href = "/index.html";
   });
 
-  // 4. LOAD THEME & BACKGROUND (Hàm áp dụng màu nền)
+  // 4. LOAD THEME & BACKGROUND (NÂNG CẤP XỬ LÝ LINK ẢNH)
   document.body.setAttribute("data-theme", localStorage.getItem("theme") || "dark");
   
-  // Hàm đổi màu nền ngay lập tức
+  // Hàm đổi màu nền THÔNG MINH
   function applyBg(val) {
     if (!val) return;
-    if (val.startsWith("http") || val.startsWith("url")) {
-      chatContentContainer.style.background = "none"; // Xóa màu đơn sắc
-      chatContentContainer.style.backgroundImage = val.startsWith("url") ? val : `url('${val}')`;
+    val = val.trim(); // Quan trọng: Xóa khoảng trắng thừa khi copy paste
+
+    // Kiểm tra xem là Link ảnh (http/https) hay Mã màu/Gradient
+    if (val.startsWith("http") || val.startsWith("https") || val.startsWith("url")) {
+      chatContentContainer.style.background = "none"; 
+      // Tự động thêm url('') nếu người dùng chỉ dán link trần
+      const bgValue = val.startsWith("url") ? val : `url('${val}')`;
+      chatContentContainer.style.backgroundImage = bgValue;
       chatContentContainer.style.backgroundSize = "cover";
       chatContentContainer.style.backgroundPosition = "center";
+      chatContentContainer.style.backgroundRepeat = "no-repeat";
     } else {
-      chatContentContainer.style.backgroundImage = "none"; // Xóa ảnh nền
+      // Là mã màu hoặc gradient
+      chatContentContainer.style.backgroundImage = "none";
       chatContentContainer.style.background = val;
     }
     localStorage.setItem("chatBg", val);
@@ -108,13 +115,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     window.socket.emit("loadPrivateHistory", { recipientId: user.id });
 
-    // HIỆN CÁC NÚT BỊ MẤT
+    // Hiện các nút chức năng
     const delBtn = document.getElementById("delete-chat-btn");
     if(callBtn) callBtn.style.display = isAI ? "none" : "flex"; 
     if(videoBtn) videoBtn.style.display = isAI ? "none" : "flex"; 
     if(delBtn) delBtn.style.display = isAI ? "none" : "flex"; 
 
-    // Reset chế độ Secret khi đổi người
     isSecretMode = false;
     if(secretBtn) { secretBtn.classList.remove("active-secret"); secretBtn.style.color = ""; }
     if(messageInput) messageInput.placeholder = "Nhập tin nhắn...";
@@ -141,24 +147,22 @@ document.addEventListener("DOMContentLoaded", () => {
     div.id = `msg-${msg.id || Date.now()}`;
     div.className = `message ${msg.senderId === window.myUserId ? "user" : "other"}`;
     
-    // --- SỬA LỖI TỰ HỦY: Thêm setTimeout để xóa UI ---
+    // Tự hủy tin nhắn
     if (msg.ttl) {
         div.classList.add("secret");
-        // Nếu là tin nhắn mới, dùng msg.ttl. Nếu load lại history, tính thời gian còn lại
         const createdAt = msg.createdAt ? new Date(msg.createdAt).getTime() : Date.now();
         const expiresAt = createdAt + msg.ttl;
         const timeLeft = expiresAt - Date.now();
 
         if (timeLeft > 0) {
             setTimeout(() => {
-                div.style.opacity = "0"; // Hiệu ứng mờ dần
-                setTimeout(() => div.remove(), 500); // Xóa hẳn sau 0.5s
+                div.style.opacity = "0"; 
+                setTimeout(() => div.remove(), 500); 
             }, timeLeft);
         } else {
-            return; // Đã hết hạn thì không hiển thị
+            return; 
         }
     }
-    // ------------------------------------------------
 
     let delBtn = "";
     if (msg.senderId === window.myUserId) delBtn = `<div class="delete-msg-btn" onclick="deleteMessage(${msg.id})"><i class="fas fa-trash"></i></div>`;
@@ -177,14 +181,14 @@ document.addEventListener("DOMContentLoaded", () => {
     if (shouldScroll) messagesContainer.scrollTop = messagesContainer.scrollHeight;
   };
 
-  // 9. GỬI TIN NHẮN (TEXT)
+  // 9. GỬI TIN NHẮN
   const chatForm = document.getElementById("chat-form");
   if(chatForm) chatForm.addEventListener("submit", (e) => {
     e.preventDefault();
     const val = messageInput.value.trim();
     if (!val || !window.currentChatContext.id) return;
     const data = { recipientId: window.currentChatContext.id, content: val };
-    if (isSecretMode) data.ttl = 10000; // 10 giây
+    if (isSecretMode) data.ttl = 10000; 
     window.socket.emit("privateMessage", data);
     messageInput.value = "";
   });
@@ -290,30 +294,34 @@ document.addEventListener("DOMContentLoaded", () => {
     document.addEventListener("click", (e) => { if(!emojiPicker.contains(e.target) && e.target !== emojiBtn) emojiPicker.classList.add("hidden"); });
   }
 
-  // 14. ĐỔI MÀU NỀN (SỬA LỖI ĐÓNG POPUP & UPDATE LIỀN)
+  // 14. ĐỔI MÀU NỀN & POPUP
   const setBtn = document.getElementById("chat-settings-btn");
   const closeBgBtn = document.getElementById("close-bg-modal");
   const saveBgBtn = document.getElementById("save-bg-btn");
   const bgModal = document.getElementById("bg-modal");
+  const bgInput = document.getElementById("bg-url-input");
   
   if(setBtn) setBtn.addEventListener("click", () => bgModal.classList.remove("hidden"));
   if(closeBgBtn) closeBgBtn.addEventListener("click", () => bgModal.classList.add("hidden"));
   
-  // Xử lý click chọn màu có sẵn
+  // Click chọn màu có sẵn
   document.querySelectorAll(".bg-preset").forEach(preset => {
       preset.addEventListener("click", () => {
           const val = preset.getAttribute("data-bg");
-          applyBg(val); // Đổi màu ngay
-          bgModal.classList.add("hidden"); // Đóng popup ngay
+          applyBg(val); // Đổi ngay
+          bgModal.classList.add("hidden"); // Tắt popup
       });
   });
 
-  // Xử lý nhập link ảnh
+  // Click Áp dụng Link ảnh
   if(saveBgBtn) saveBgBtn.addEventListener("click", () => {
-      const url = document.getElementById("bg-url-input").value;
+      const url = bgInput.value.trim(); // Cắt khoảng trắng
       if(url) { 
           applyBg(url); 
-          bgModal.classList.add("hidden"); 
+          bgModal.classList.add("hidden"); // Tắt popup
+          bgInput.value = ""; // Xóa ô nhập
+      } else {
+          alert("Vui lòng nhập Link ảnh hợp lệ!");
       }
   });
 
@@ -344,7 +352,7 @@ document.addEventListener("DOMContentLoaded", () => {
   };
   window.socket.on("messageDeleted", ({ messageId }) => { const el = document.getElementById(`msg-${messageId}`); if(el) el.remove(); });
   
-  // Chế độ Secret Mode (Toggle UI)
+  // Secret Mode Toggle
   if(secretBtn) {
       secretBtn.addEventListener("click", () => {
           isSecretMode = !isSecretMode;
@@ -360,7 +368,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
   }
 
-  // Mobile Back & Group Modal
+  // Mobile & Group
   const backBtn = document.getElementById("mobile-back-btn");
   if(backBtn) backBtn.addEventListener("click", () => { chatContainer.classList.remove("mobile-active"); window.currentChatContext = { id: null }; });
   
