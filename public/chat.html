@@ -7,7 +7,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <link rel="stylesheet" href="chat-style.css" />
-    </head>
+    <script src="https://cdn.jsdelivr.net/npm/@joeattardi/emoji-button@4.6.0/dist/index.min.js"></script>
+  </head>
   <body data-theme="dark">
     
     <nav class="navbar glass-header">
@@ -17,15 +18,24 @@
             <span class="brand-text">Nexus</span>
         </div>
       </div>
+
       <div class="nav-center">
-        <a href="/home.html" class="nav-item"><i class="fas fa-home"></i></a>
-        <a href="/friends.html" class="nav-item"><i class="fas fa-user-friends"></i></a>
-        <a href="#" class="nav-item active"><i class="fas fa-comment-alt"></i></a>
+        <a href="/home.html" class="nav-item" title="Trang chủ"><i class="fas fa-home"></i></a>
+        <a href="/friends.html" class="nav-item" title="Bạn bè"><i class="fas fa-user-friends"></i></a>
+        <a href="#" class="nav-item active" title="Tin nhắn"><i class="fas fa-comment-alt"></i></a>
+        <a href="/notifications.html" class="nav-item" title="Thông báo">
+            <div class="nav-badge">3</div> <i class="fas fa-bell"></i>
+        </a>
       </div>
+
       <div class="nav-right">
-        <div class="nav-profile"><img id="nav-avatar" src="" onerror="this.src='https://ui-avatars.com/api/?name=U'" /></div>
-        <button class="icon-circle-btn" id="theme-toggle"><i class="fas fa-adjust"></i></button>
-        <button class="icon-circle-btn" onclick="location.href='/logout'"><i class="fas fa-sign-out-alt"></i></button>
+        <div class="nav-profile"><img id="nav-avatar" src="" /></div>
+        <button class="icon-circle-btn theme-btn" id="theme-toggle" title="Chế độ Sáng/Tối">
+            <i class="fas fa-moon"></i>
+        </button>
+        <button class="icon-circle-btn logout-btn" onclick="location.href='/logout'" title="Đăng xuất">
+            <i class="fas fa-sign-out-alt"></i>
+        </button>
       </div>
     </nav>
 
@@ -44,7 +54,7 @@
           <div class="header-left-group">
             <button class="back-btn" id="mobile-back-btn"><i class="fas fa-arrow-left"></i></button>
             <div class="header-user">
-                <div class="avatar-circle"><img id="header-avatar" src="" onerror="this.src='https://ui-avatars.com/api/?name=Chat'" /><div class="status-indicator online"></div></div>
+                <div class="avatar-circle"><img id="header-avatar" src="" /><div class="status-indicator online"></div></div>
                 <div class="header-text"><h3 id="chat-header-title">...</h3><span id="chat-status" class="status-sub">--</span></div>
             </div>
           </div>
@@ -58,7 +68,7 @@
         <div id="chat-content-container">
             <div class="chat-overlay"></div>
             <div id="messages" class="custom-scroll">
-                <div class="empty-placeholder"><div class="empty-icon"><i class="fab fa-facebook-messenger"></i></div><p>Chọn hội thoại để bắt đầu.</p></div>
+                <div class="empty-placeholder"><div class="empty-icon"><i class="fab fa-facebook-messenger"></i></div><p>Bắt đầu trò chuyện.</p></div>
             </div>
         </div>
 
@@ -73,21 +83,31 @@
                 <button type="button" class="btn-icon" id="voice-btn"><i class="fas fa-microphone"></i></button>
                 <button type="submit" class="btn-send" id="send-btn" disabled><i class="fas fa-paper-plane"></i></button>
             </div>
-            
-            <div class="emoji-picker hidden" id="emoji-picker">
-                <div class="emoji-header">Cảm xúc</div>
-                <div class="emoji-grid">
-                    <span>😀</span><span>😂</span><span>🤣</span><span>😉</span><span>😊</span><span>🥰</span><span>😍</span><span>🤩</span>
-                    <span>😘</span><span>😗</span><span>🤪</span><span>😎</span><span>🥳</span><span>😏</span><span>😒</span><span>😞</span>
-                    <span>😔</span><span>😟</span><span>😕</span><span>😫</span><span>🥺</span><span>😭</span><span>😤</span><span>😠</span>
-                    <span>😡</span><span>🤬</span><span>🤯</span><span>😳</span><span>🥵</span><span>🥶</span><span>😱</span><span>😨</span>
-                    <span>👍</span><span>👎</span><span>👌</span><span>✌️</span><span>🤞</span><span>🤟</span><span>👏</span><span>🙌</span>
-                    <span>❤️</span><span>🧡</span><span>💛</span><span>💚</span><span>💙</span><span>💜</span><span>🖤</span><span>💔</span>
-                    <span>🎉</span><span>✨</span><span>🔥</span><span>💩</span><span>👻</span><span>💀</span><span>👽</span><span>🤖</span>
-                </div>
-            </div>
         </form>
       </main>
+    </div>
+
+    <div id="file-modal" class="modal-overlay hidden">
+        <div class="modal-box glass-panel upload-modal">
+            <h3>Gửi tệp đính kèm</h3>
+            
+            <div class="upload-area" onclick="document.getElementById('file-input').click()">
+                <div class="upload-icon">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                </div>
+                <p class="upload-text">Nhấn để chọn ảnh hoặc video</p>
+                <p class="upload-subtext">Hỗ trợ: JPG, PNG, MP4, MP3</p>
+                <input type="file" id="file-input" multiple hidden>
+            </div>
+
+            <div id="selected-files-list" class="custom-scroll">
+                </div>
+
+            <div class="modal-actions">
+                <button id="send-file" class="btn-primary-gradient">Gửi ngay</button>
+                <div class="close-modal" id="cancel-file">Hủy bỏ</div>
+            </div>
+        </div>
     </div>
 
     <div id="group-modal" class="modal-overlay hidden">
@@ -110,20 +130,10 @@
              <div class="bg-preset" style="background: linear-gradient(135deg, #ff9a9e, #fecfef);" onclick="changeBg('linear-gradient(135deg, #ff9a9e, #fecfef)')"></div>
              <div class="bg-preset" style="background: linear-gradient(135deg, #0ba360, #3cba92);" onclick="changeBg('linear-gradient(135deg, #0ba360, #3cba92)')"></div>
         </div>
-        <input type="text" id="bg-url-input" placeholder="URL ảnh..." />
-        <button id="save-bg-btn">Áp dụng Link</button>
+        <input type="text" id="bg-url-input" placeholder="Link ảnh..." />
+        <button id="save-bg-btn">Áp dụng</button>
         <div class="close-modal" id="close-bg-modal">Đóng</div>
       </div>
-    </div>
-
-    <div id="file-modal" class="modal-overlay hidden">
-        <div class="modal-box glass-panel">
-            <h3>Gửi tệp</h3>
-            <div class="upload-zone" onclick="document.getElementById('file-input').click()"><i class="fas fa-cloud-upload-alt"></i><p>Chọn file</p><input type="file" id="file-input" multiple hidden></div>
-            <div id="selected-files-list"></div>
-            <button id="send-file">Gửi ngay</button>
-            <div class="close-modal" id="cancel-file">Hủy</div>
-        </div>
     </div>
 
     <div id="call-window" class="call-overlay hidden">
