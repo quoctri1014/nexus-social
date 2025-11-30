@@ -90,7 +90,7 @@ const transporter = nodemailer.createTransport({
 const otpStore = new Map();
 
 // ==========================================
-// 3. MIDDLEWARE XÁC THỰC
+// 3. MIDDLEWARE XÁC THỰC (JWT)
 // ==========================================
 const authenticateToken = (req, res, next) => {
   const token = req.headers["authorization"]?.split(" ")[1];
