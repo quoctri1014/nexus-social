@@ -7,11 +7,10 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import db from "./db.js";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 import multer from "multer";
 import nodemailer from "nodemailer";
-
-// THƯ VIỆN AI & CLOUD
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { v2 as cloudinary } from 'cloudinary';
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
@@ -19,18 +18,16 @@ import { CloudinaryStorage } from 'multer-storage-cloudinary';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// CONFIG
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const JWT_SECRET = process.env.JWT_SECRET || "secret_key_nexus_2025";
 
-// AI INIT
 let aiModel = null;
 if (GEMINI_API_KEY) {
     try {
         const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
         aiModel = genAI.getGenerativeModel({ model: "gemini-pro" });
         console.log("✅ AI Model initialized");
-    } catch (err) { console.error("AI Init Error:", err.message); }
+    } catch (err) { console.error("AI Error:", err.message); }
 }
 
 const app = express();
@@ -41,52 +38,49 @@ const onlineUsers = {};
 app.use(express.static("public"));
 app.use(express.json());
 
-// CLOUDINARY
-if (process.env.CLOUDINARY_CLOUD_NAME) {
+// Cloudinary Config
+if(process.env.CLOUDINARY_CLOUD_NAME) {
     cloudinary.config({
       cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
       api_key: process.env.CLOUDINARY_API_KEY,
       api_secret: process.env.CLOUDINARY_API_SECRET
     });
 }
+
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
-  params: { folder: 'nexus_uploads', resource_type: 'auto', allowed_formats: ['jpg', 'png', 'jpeg', 'gif', 'webm', 'mp3', 'wav', 'mp4'] },
+  params: { folder: 'nexus_uploads', resource_type: 'auto', allowed_formats: ['jpg', 'png', 'mp3', 'wav', 'mp4'] },
 });
 const upload = multer({ storage });
 
-// EMAIL
 const transporter = nodemailer.createTransport({
   service: "gmail", auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
 });
 const otpStore = new Map();
 
-// MIDDLEWARE
 const authenticateToken = (req, res, next) => {
   const token = req.headers["authorization"]?.split(" ")[1];
   if (!token) return res.sendStatus(401);
   jwt.verify(token, JWT_SECRET, (err, user) => { if (err) return res.sendStatus(403); req.user = user; next(); });
 };
 
-// ================= ROUTES =================
-
-// 1. AUTH
+// API
 app.post("/api/send-otp", async (req, res) => {
   const { email, username } = req.body;
   try {
     const [exists] = await db.query("SELECT id FROM users WHERE email = ? OR username = ?", [email, username]);
-    if (exists.length > 0) return res.status(400).json({ message: "Email hoặc User đã tồn tại!" });
+    if (exists.length > 0) return res.status(400).json({ message: "Đã tồn tại!" });
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     otpStore.set(email, { otp, expires: Date.now() + 300000 });
-    await transporter.sendMail({ from: 'Nexus', to: email, subject: "OTP Nexus", html: `<h3>OTP: <b>${otp}</b></h3>` });
-    res.json({ message: "Đã gửi OTP!" });
-  } catch (e) { res.status(500).json({ message: "Lỗi gửi mail." }); }
+    await transporter.sendMail({ from: 'Nexus', to: email, subject: "OTP", html: `<h3>OTP: <b>${otp}</b></h3>` });
+    res.json({ message: "OK" });
+  } catch (e) { res.status(500).json({ message: "Lỗi mail" }); }
 });
 
 app.post("/api/verify-otp", (req, res) => {
   const { email, otp } = req.body;
   const data = otpStore.get(email);
-  if (!data || Date.now() > data.expires || data.otp !== otp) return res.status(400).json({ message: "Sai OTP." });
+  if (!data || Date.now() > data.expires || data.otp !== otp) return res.status(400).json({ message: "Sai OTP" });
   res.json({ message: "OK" });
 });
 
@@ -96,42 +90,31 @@ app.post("/api/complete-register", async (req, res) => {
     const hash = await bcrypt.hash(password, 10);
     await db.query("INSERT INTO users (username, passwordHash, email, nickname, avatar) VALUES (?, ?, ?, ?, ?)", [username, hash, email, nickname, avatar]);
     otpStore.delete(email);
-    res.status(201).json({ message: "Thành công!" });
-  } catch (e) { res.status(500).json({ message: "Lỗi DB." }); }
+    res.status(201).json({ message: "OK" });
+  } catch (e) { res.status(500).json({ message: "Lỗi DB" }); }
 });
 
 app.post("/api/login", async (req, res) => {
   const { username, password } = req.body;
   try {
     const [rows] = await db.query("SELECT * FROM users WHERE username = ?", [username]);
-    if (!rows[0] || !(await bcrypt.compare(password, rows[0].passwordHash))) return res.status(400).json({ message: "Sai thông tin." });
+    if (!rows[0] || !(await bcrypt.compare(password, rows[0].passwordHash))) return res.status(400).json({ message: "Sai thông tin" });
     const token = jwt.sign({ userId: rows[0].id, username: rows[0].username }, JWT_SECRET, { expiresIn: "7d" });
     res.json({ message: "OK", token });
   } catch (e) { res.status(500).json({ message: "Error" }); }
 });
-
-// 2. USER ROUTES (QUAN TRỌNG: Đã sắp xếp lại thứ tự)
 
 app.get("/api/me", authenticateToken, async (req, res) => {
   const [r] = await db.query("SELECT id, username, nickname, email, avatar, bio, location, work, education FROM users WHERE id=?", [req.user.userId]);
   res.json(r[0]);
 });
 
-// SEARCH phải nằm trên :id
 app.get("/api/users/search", authenticateToken, async (req, res) => {
   const query = req.query.q;
   if (!query) return res.json([]);
   try {
     const [users] = await db.query("SELECT id, username, nickname, avatar FROM users WHERE (username LIKE ? OR nickname LIKE ?) AND id != ? AND id != 0 LIMIT 20", [`%${query}%`, `%${query}%`, req.user.userId]);
     res.json(users);
-  } catch (e) { res.status(500).json({ message: "Error" }); }
-});
-
-// SUGGESTIONS phải nằm trên :id (Đây là chỗ sửa lỗi 404 của bạn)
-app.get("/api/users/suggestions", authenticateToken, async (req, res) => {
-  try {
-    const [u] = await db.query(`SELECT id, username, nickname, avatar FROM users WHERE id != ? AND id != 0 AND id NOT IN (SELECT receiverId FROM friend_requests WHERE senderId = ? UNION SELECT senderId FROM friend_requests WHERE receiverId = ?) LIMIT 20`, [req.user.userId, req.user.userId, req.user.userId]);
-    res.json(u);
   } catch (e) { res.status(500).json({ message: "Error" }); }
 });
 
@@ -143,17 +126,38 @@ app.post("/api/profile/update", authenticateToken, async (req, res) => {
   } catch (e) { res.status(500).json({ message: "Error" }); }
 });
 
-// API :id phải nằm CUỐI CÙNG trong nhóm users
+// --- ĐÃ CHUYỂN SUGGESTIONS LÊN TRÊN :ID ĐỂ TRÁNH LỖI 404 ---
+app.get("/api/users/suggestions", authenticateToken, async (req, res) => {
+  try {
+    // Lấy danh sách user (trừ bản thân, AI, và những người đã gửi/nhận lời mời kết bạn)
+    const [u] = await db.query(`
+        SELECT id, username, nickname, avatar 
+        FROM users 
+        WHERE id != ? AND id != 0 
+        AND id NOT IN (
+            SELECT receiverId FROM friend_requests WHERE senderId = ? 
+            UNION 
+            SELECT senderId FROM friend_requests WHERE receiverId = ?
+        ) 
+        LIMIT 20`, 
+        [req.user.userId, req.user.userId, req.user.userId]);
+    res.json(u);
+  } catch (e) { 
+      console.error("Suggestion Error:", e);
+      res.status(500).json({ message: "Error" }); 
+  }
+});
+
+// API lấy chi tiết user (phải nằm sau suggestions)
 app.get("/api/users/:id", authenticateToken, async (req, res) => {
   try {
     const [rows] = await db.query("SELECT id, username, nickname, avatar, bio, location, work, education FROM users WHERE id = ?", [req.params.id]);
     if (rows.length === 0) return res.status(404).json({ message: "Not found" });
-    const [posts] = await db.query(`SELECT p.*, (SELECT COUNT(*) FROM post_reactions WHERE postId = p.id) as totalReactions, (SELECT COUNT(*) FROM post_comments WHERE postId = p.id) as totalComments FROM posts p WHERE userId = ? ORDER BY createdAt DESC`, [req.params.id]);
+    const [posts] = await db.query(`SELECT * FROM posts WHERE userId = ? ORDER BY createdAt DESC`, [req.params.id]);
     res.json({ user: rows[0], posts: posts });
   } catch (e) { res.status(500).json({ message: "Error" }); }
 });
 
-// 3. OTHER ROUTES
 app.get("/api/friends", authenticateToken, async (req, res) => {
   try {
     const [f] = await db.query(`SELECT u.id, u.username, u.nickname, u.avatar FROM users u JOIN friend_requests fr ON (fr.senderId = u.id OR fr.receiverId = u.id) WHERE (fr.senderId = ? OR fr.receiverId = ?) AND fr.status = 'accepted' AND u.id != ?`, [req.user.userId, req.user.userId, req.user.userId]);
@@ -184,7 +188,7 @@ app.post("/api/friends/accept", authenticateToken, async (req, res) => {
 
 app.get("/api/posts", authenticateToken, async (req, res) => {
   try {
-    const [posts] = await db.query(`SELECT p.*, u.username, u.nickname, u.avatar, (SELECT COUNT(*) FROM post_reactions WHERE postId = p.id) as totalReactions, (SELECT COUNT(*) FROM post_comments WHERE postId = p.id) as totalComments, (SELECT type FROM post_reactions WHERE postId = p.id AND userId = ?) as myReaction FROM posts p JOIN users u ON p.userId = u.id ORDER BY p.createdAt DESC LIMIT 50`, [req.user.userId]);
+    const [posts] = await db.query(`SELECT p.*, u.username, u.nickname, u.avatar FROM posts p JOIN users u ON p.userId = u.id ORDER BY p.createdAt DESC LIMIT 50`);
     res.json(posts);
   } catch (e) { res.status(500).json({ message: "Error" }); }
 });
@@ -193,35 +197,6 @@ app.post("/api/posts", authenticateToken, async (req, res) => {
   try {
     await db.query("INSERT INTO posts (userId, content, image) VALUES (?, ?, ?)", [req.user.userId, req.body.content, req.body.image]);
     res.json({ message: "Posted" });
-  } catch (e) { res.status(500).json({ message: "Error" }); }
-});
-
-app.post("/api/posts/:id/react", authenticateToken, async (req, res) => {
-  const { id } = req.params; const { type } = req.body;
-  try {
-    const [ex] = await db.query("SELECT id, type FROM post_reactions WHERE postId=? AND userId=?", [id, req.user.userId]);
-    if (ex.length > 0) {
-      if (ex[0].type === type) await db.query("DELETE FROM post_reactions WHERE id=?", [ex[0].id]);
-      else await db.query("UPDATE post_reactions SET type=? WHERE id=?", [type, ex[0].id]);
-    } else {
-      await db.query("INSERT INTO post_reactions (postId, userId, type) VALUES (?, ?, ?)", [id, req.user.userId, type]);
-    }
-    res.json({ message: "OK" });
-  } catch (e) { res.status(500).json({ message: "Error" }); }
-});
-
-app.get("/api/posts/:id/comments", authenticateToken, async (req, res) => {
-  try {
-    const [c] = await db.query("SELECT c.*, u.username, u.nickname, u.avatar FROM post_comments c JOIN users u ON c.userId = u.id WHERE c.postId = ? ORDER BY c.createdAt ASC", [req.params.id]);
-    res.json(c);
-  } catch (e) { res.status(500).json({ message: "Error" }); }
-});
-
-app.post("/api/posts/:id/comments", authenticateToken, async (req, res) => {
-  if (!req.body.content) return res.status(400).json({ message: "Empty" });
-  try {
-    await db.query("INSERT INTO post_comments (postId, userId, content) VALUES (?, ?, ?)", [req.params.id, req.user.userId, req.body.content]);
-    res.json({ message: "OK" });
   } catch (e) { res.status(500).json({ message: "Error" }); }
 });
 
@@ -305,9 +280,10 @@ io.on("connection", async (socket) => {
   await sendUserList();
 
   socket.on("privateMessage", async (data) => {
-    const content = data.content || "";
+    const content = data.content;
     const recipientId = data.recipientId;
-    if (!recipientId && recipientId !== 0) return;
+
+    if (recipientId === undefined || recipientId === null || !content) return;
 
     if (recipientId === 0) {
         await db.query("INSERT INTO messages (senderId, recipientId, content) VALUES (?, 0, ?)", [userId, content]);
