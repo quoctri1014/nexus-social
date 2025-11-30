@@ -2,7 +2,7 @@
 <html lang="vi">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Nexus - Bảng tin</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
@@ -12,12 +12,12 @@
     <nav class="navbar">
       <div class="nav-container">
         <div class="nav-left">
-          <div class="logo" onclick="window.location.href='/home.html'" style="cursor: pointer">
-            <i class="fab fa-neos"></i> <span class="brand-text">Nexus</span>
+          <div class="logo" onclick="window.location.href='/home.html'">
+            <i class="fab fa-neos"></i> Nexus
           </div>
           <div class="search-bar">
             <i class="fas fa-search"></i>
-            <input type="text" placeholder="Tìm kiếm..." />
+            <input type="text" placeholder="Tìm kiếm trên Nexus..." />
           </div>
         </div>
 
@@ -32,34 +32,35 @@
         </div>
 
         <div class="nav-right">
-          <div class="user-profile" id="open-profile-btn" title="Cá nhân">
+          <div class="user-profile" id="open-profile-btn">
             <img id="nav-avatar" src="" alt="" />
-            <div class="user-info-nav desktop-only"><span id="nav-username">User</span></div>
+            <div class="user-info-nav"><span id="nav-username">Loading...</span></div>
           </div>
-          <div class="nav-btn" id="theme-toggle"><i class="fas fa-moon"></i></div>
+          <div class="nav-btn" id="theme-toggle"><i class="fas fa-adjust"></i></div>
           <div class="nav-btn" onclick="logout()" title="Đăng xuất"><i class="fas fa-sign-out-alt"></i></div>
         </div>
       </div>
     </nav>
 
     <div class="main-layout">
-      <aside class="sidebar-left desktop-only">
+      <aside class="sidebar-left">
         <div class="profile-card-mini" id="my-profile-card">
           <div class="pcm-cover"></div>
           <div class="pcm-info">
             <img id="sidebar-avatar" src="" alt="" />
             <h3 id="sidebar-name">User</h3>
-            <p id="sidebar-bio" class="text-bio">...</p>
+            <p id="sidebar-bio" class="text-bio">Chưa có tiểu sử</p>
             <div class="pcm-details">
               <div class="pcm-row hidden" id="sidebar-location-row"><i class="fas fa-map-marker-alt"></i> <span id="sidebar-location"></span></div>
               <div class="pcm-row hidden" id="sidebar-work-row"><i class="fas fa-briefcase"></i> <span id="sidebar-work"></span></div>
+              <div class="pcm-row hidden" id="sidebar-edu-row"><i class="fas fa-graduation-cap"></i> <span id="sidebar-edu"></span></div>
             </div>
           </div>
         </div>
         <div class="sidebar-content mt-20">
-          <div class="menu-item active"><i class="fas fa-newspaper" style="color:#1877f2"></i><span>Bảng tin</span></div>
-          <div class="menu-item" onclick="window.location.href='/friends.html'"><i class="fas fa-users" style="color:#1da1f2"></i><span>Bạn bè</span></div>
-          <div class="menu-item" onclick="window.location.href='/chat.html'"><i class="fas fa-comments" style="color:#45bd62"></i><span>Messenger</span></div>
+          <div class="menu-item active"><i class="fas fa-newspaper" style="color: #1877f2"></i><span>Bảng tin</span></div>
+          <div class="menu-item" onclick="window.location.href='/friends.html'"><i class="fas fa-users" style="color: #1da1f2"></i><span>Bạn bè</span></div>
+          <div class="menu-item" onclick="window.location.href='/chat.html'"><i class="fas fa-comments" style="color: #45bd62"></i><span>Messenger</span></div>
         </div>
       </aside>
 
@@ -84,7 +85,7 @@
           </div>
           <div class="cp-actions">
             <div class="cp-btn" onclick="document.getElementById('post-image-input').click()">
-              <i class="fas fa-images" style="color:#45bd62"></i><span>Ảnh/Video</span>
+              <i class="fas fa-images" style="color: #45bd62"></i><span>Ảnh/Video</span>
             </div>
             <button id="post-btn">Đăng</button>
           </div>
@@ -94,96 +95,67 @@
         <div id="feed-container"></div>
       </main>
 
-      <aside class="sidebar-right desktop-only">
-        <div class="sidebar-title"><span>Liên hệ</span></div>
+      <aside class="sidebar-right">
+        <div class="sidebar-title" style="display: flex; justify-content: space-between; align-items: center;">
+          <span>Người liên hệ</span>
+          <i class="fas fa-search" onclick="window.location.href='/friends.html'" style="cursor: pointer; color: #65676b" title="Tìm bạn bè"></i>
+        </div>
         <div id="contact-list"></div>
       </aside>
     </div>
 
     <div id="profile-modal" class="modal-backdrop hidden">
-      <div class="modal-content profile-modern-box">
-        
-        <div class="modal-header-modern">
-          <h3>Hồ sơ cá nhân</h3>
-          <button class="close-btn-modern" id="close-modal-x"><i class="fas fa-times"></i></button>
+      <div class="modal-content profile-edit-box">
+        <div class="modal-header">
+          <h2>Chỉnh sửa trang cá nhân</h2>
+          <i class="fas fa-times" id="close-modal-x" style="cursor: pointer"></i>
         </div>
-
-        <div class="modal-body-modern custom-scroll">
-          <div class="profile-cover-edit">
-            <div class="profile-avatar-large-wrapper">
-                <img id="edit-avatar-preview" src="" />
-                <label for="edit-avatar-input" class="avatar-edit-btn"><i class="fas fa-camera"></i></label>
-                <input type="file" id="edit-avatar-input" hidden accept="image/*" />
+        <div class="modal-body">
+          <div class="profile-section center">
+            <div class="profile-avatar-edit">
+              <img id="edit-avatar-preview" src="" />
+              <label for="edit-avatar-input" class="edit-icon"><i class="fas fa-camera"></i></label>
+              <input type="file" id="edit-avatar-input" hidden accept="image/*" />
             </div>
           </div>
-
-          <div class="profile-form-container">
-            <div class="form-floating">
-                <input type="text" id="edit-nickname" placeholder=" " />
-                <label>Tên hiển thị</label>
-                <i class="fas fa-user input-icon"></i>
-            </div>
-
-            <div class="form-floating">
-                <textarea id="edit-bio" placeholder=" " rows="3"></textarea>
-                <label>Tiểu sử ngắn</label>
-                <i class="fas fa-quote-left input-icon"></i>
-            </div>
-
-            <div class="grid-row">
-                <div class="form-floating">
-                    <input type="text" id="edit-work" placeholder=" " />
-                    <label>Công việc</label>
-                    <i class="fas fa-briefcase input-icon"></i>
-                </div>
-                <div class="form-floating">
-                    <input type="text" id="edit-education" placeholder=" " />
-                    <label>Học vấn</label>
-                    <i class="fas fa-graduation-cap input-icon"></i>
-                </div>
-            </div>
-
-            <div class="form-floating">
-                <input type="text" id="edit-location" placeholder=" " />
-                <label>Thành phố/Nơi sống</label>
-                <i class="fas fa-map-marker-alt input-icon"></i>
-            </div>
+          <div class="profile-section">
+            <h3>Thông tin chi tiết</h3>
+            <div class="form-group"><label>Tên hiển thị</label><input type="text" id="edit-nickname" /></div>
+            <div class="form-group"><label>Tiểu sử</label><textarea id="edit-bio" rows="3"></textarea></div>
+            <div class="form-group-icon"><i class="fas fa-map-marker-alt"></i><input type="text" id="edit-location" placeholder="Sống tại" /></div>
+            <div class="form-group-icon"><i class="fas fa-briefcase"></i><input type="text" id="edit-work" placeholder="Công việc" /></div>
+            <div class="form-group-icon"><i class="fas fa-graduation-cap"></i><input type="text" id="edit-edu" placeholder="Học vấn" /></div>
           </div>
         </div>
-
-        <div class="modal-footer-modern">
-          <button id="cancel-profile-btn" class="btn-modern-sec">Hủy</button>
-          <button id="save-profile-btn" class="btn-modern-pri">Lưu thay đổi</button>
+        <div class="modal-footer" style="display: flex; gap: 10px">
+          <button id="cancel-profile-btn" class="btn-secondary" style="flex: 1">Hủy</button>
+          <button id="save-profile-btn" class="btn-primary" style="flex: 2">Lưu thay đổi</button>
         </div>
-
       </div>
     </div>
 
     <div id="view-user-modal" class="modal-backdrop hidden">
-      <div class="modal-content profile-modern-box">
-        <div class="modal-header-modern">
-            <h3>Thông tin người dùng</h3>
-            <button class="close-btn-modern" id="close-view-user"><i class="fas fa-times"></i></button>
+      <div class="modal-content profile-edit-box" style="width: 600px">
+        <div class="modal-header">
+          <h2>Trang cá nhân</h2>
+          <i class="fas fa-times" id="close-view-user" style="cursor: pointer"></i>
         </div>
-        <div class="modal-body-modern custom-scroll" style="padding:0;">
-          <div style="height:120px; background: linear-gradient(to right, #1877f2, #00c6ff);"></div>
-          <div class="view-profile-header">
-            <img id="view-avatar" src="" />
-            <button class="btn-modern-pri" onclick="window.location.href='/chat.html'"><i class="fas fa-comment"></i> Nhắn tin</button>
+        <div class="modal-body" style="padding: 0">
+          <div style="height: 120px; background: linear-gradient(to right, #1877f2, #00c6ff);"></div>
+          <div style="padding: 0 20px; position: relative; margin-top: -50px; display: flex; justify-content: space-between; align-items: flex-end;">
+            <div style="text-align: center"><img id="view-avatar" src="" style="width: 100px; height: 100px; border-radius: 50%; border: 4px solid white; object-fit: cover;" /></div>
+            <button class="btn-primary" onclick="window.location.href='/chat.html'"><i class="fas fa-comment"></i> Nhắn tin</button>
           </div>
-          <div class="view-profile-info">
-            <h2 id="view-name"></h2>
-            <p id="view-bio"></p>
-            <div class="view-details">
-              <div id="view-location-row" class="hidden"><i class="fas fa-map-marker-alt"></i> <span id="view-location"></span></div>
-              <div id="view-work-row" class="hidden"><i class="fas fa-briefcase"></i> <span id="view-work"></span></div>
-              <div id="view-edu-row" class="hidden"><i class="fas fa-graduation-cap"></i> <span id="view-edu"></span></div>
+          <div style="padding: 15px 20px; border-bottom: 1px solid #eee">
+            <h2 id="view-name" style="margin: 0; font-size: 22px"></h2>
+            <p id="view-bio" style="color: #65676b; font-style: italic; margin-top: 5px"></p>
+            <div style="margin-top: 10px; font-size: 14px; color: #333">
+              <div id="view-location-row" class="hidden"><i class="fas fa-map-marker-alt" style="width: 20px; color: #65676b"></i> <span id="view-location"></span></div>
+              <div id="view-work-row" class="hidden"><i class="fas fa-briefcase" style="width: 20px; color: #65676b"></i> <span id="view-work"></span></div>
+              <div id="view-edu-row" class="hidden"><i class="fas fa-graduation-cap" style="width: 20px; color: #65676b"></i> <span id="view-edu"></span></div>
             </div>
           </div>
-          <div class="view-posts-section">
-            <h4>Bài viết gần đây</h4>
-            <div id="view-user-posts"></div>
-          </div>
+          <div style="padding: 20px; background: #f0f2f5"><h4>Bài viết</h4><div id="view-user-posts"></div></div>
         </div>
       </div>
     </div>
