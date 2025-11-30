@@ -1,5 +1,5 @@
 /**
- * public/file-handler.js - PHIÊN BẢN HOÀN CHỈNH (Upload File & Realtime Message)
+ * public/file-handler.js - PHIÊN BẢN HOÀN CHỈNH (FIX LỖI UPLOAD & XỬ LÝ JSON)
  */
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -81,9 +81,17 @@ document.addEventListener("DOMContentLoaded", () => {
         body: formData,
       });
 
-      if (!res.ok) throw new Error("Upload thất bại");
-
-      const uploadedFiles = await res.json(); // Server trả về mảng [{type, name, url, size}]
+      // --- ĐOẠN SỬA LỖI QUAN TRỌNG ---
+      // Kiểm tra nếu response không phải JSON (ví dụ HTML báo lỗi 500)
+      const contentType = res.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+          throw new Error("Lỗi Server: Cấu hình Cloudinary chưa đúng hoặc file quá lớn.");
+      }
+      
+      const uploadedFiles = await res.json(); 
+      
+      if (!res.ok) throw new Error(uploadedFiles.message || "Upload thất bại");
+      // -------------------------------
 
       // Gửi từng file qua Socket
       uploadedFiles.forEach((fileData) => {
@@ -109,8 +117,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Thành công -> Đóng Modal
       fileModal.classList.add("hidden");
-      alert(`Đã gửi thành công ${uploadedFiles.length} file!`);
+      // alert(`Đã gửi thành công ${uploadedFiles.length} file!`);
     } catch (error) {
+      console.error(error);
       alert("Lỗi Gửi File: " + error.message);
     } finally {
       sendFileButton.textContent = "Gửi ngay";
