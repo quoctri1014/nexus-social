@@ -11,37 +11,49 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import multer from "multer";
 import nodemailer from "nodemailer";
-import { GoogleGenAI } from "@google/genai";
+
+// --- SỬA LẠI THƯ VIỆN AI CHUẨN ---
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
+// --- CLOUDINARY ---
 import { v2 as cloudinary } from 'cloudinary';
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
 
+// CONFIG
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// KEY & CONFIG
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const JWT_SECRET = process.env.JWT_SECRET || "secret_key_nexus_2025";
 
-// AI Init
+// --- KHỞI TẠO AI (ĐÃ SỬA LỖI) ---
 let aiModel = null;
 if (GEMINI_API_KEY) {
     try {
-        const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-        aiModel = ai.getGenerativeModel({ model: "gemini-2.0-flash" });
-        console.log("✅ AI Model initialized");
-    } catch (err) { console.error("⚠️ AI Error:", err.message); }
+        // Dùng GoogleGenerativeAI thay vì GoogleGenAI
+        const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+        aiModel = genAI.getGenerativeModel({ model: "gemini-pro" }); // Dùng model pro ổn định hơn
+        console.log("✅ AI Model initialized (gemini-pro)");
+    } catch (err) {
+        console.error("⚠️ AI Init Error:", err.message);
+    }
+} else {
+    console.warn("⚠️ Thiếu GEMINI_API_KEY");
 }
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" }, transports: ["websocket", "polling"] });
+const io = new Server(server, {
+  cors: { origin: "*" },
+  transports: ["websocket", "polling"],
+});
 
 const onlineUsers = {};
 
 app.use(express.static("public"));
 app.use(express.json());
 
-// CLOUDINARY CONFIG
+// CLOUDINARY
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -76,7 +88,7 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-// --- AUTH APIS ---
+// --- API ---
 app.post("/api/send-otp", async (req, res) => {
   const { email, username } = req.body;
   try {
@@ -116,16 +128,24 @@ app.post("/api/login", async (req, res) => {
   } catch (e) { res.status(500).json({ message: "Error" }); }
 });
 
-// --- USER & UPLOAD ---
 app.get("/api/me", authenticateToken, async (req, res) => {
   const [r] = await db.query("SELECT id, username, nickname, email, avatar FROM users WHERE id=?", [req.user.userId]);
   res.json(r[0]);
 });
 
+app.get("/api/users/search", authenticateToken, async (req, res) => {
+  const query = req.query.q;
+  if (!query) return res.json([]);
+  try {
+    const [users] = await db.query("SELECT id, username, nickname, avatar FROM users WHERE (username LIKE ? OR nickname LIKE ?) AND id != ? AND id != 0 LIMIT 20", [`%${query}%`, `%${query}%`, req.user.userId]);
+    res.json(users);
+  } catch (e) { res.status(500).json({ message: "Error" }); }
+});
+
 app.post("/api/upload", upload.array("files", 5), (req, res) => {
   if (!req.files) return res.status(400).json({ message: "No file" });
   const files = req.files.map(f => ({
-    type: f.mimetype.includes("image") ? "image" : "audio", // Đơn giản hóa type
+    type: f.mimetype.includes("image") ? "image" : "audio",
     name: f.originalname,
     url: f.path 
   }));
@@ -136,18 +156,13 @@ app.post("/api/groups/create", authenticateToken, async (req, res) => {
   const { name, members } = req.body;
   const creatorId = req.user.userId;
   if (!members.includes(creatorId)) members.push(creatorId);
-  
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
     const [g] = await conn.query("INSERT INTO groups (name, creatorId) VALUES (?, ?)", [name, creatorId]);
-    
-    // FIX: Insert nhiều dòng đúng cú pháp MySQL
     const values = members.map(uid => [g.insertId, uid]);
     await conn.query("INSERT INTO group_members (groupId, userId) VALUES ?", [values]);
-    
     await conn.commit();
-    
     const [gInfo] = await db.query("SELECT * FROM groups WHERE id=?", [g.insertId]);
     members.forEach(uid => {
         if (onlineUsers[uid]) {
@@ -157,11 +172,7 @@ app.post("/api/groups/create", authenticateToken, async (req, res) => {
         }
     });
     res.json({ message: "OK" });
-  } catch (e) {
-    await conn.rollback();
-    console.error(e);
-    res.status(500).json({ message: "Error" });
-  } finally { conn.release(); }
+  } catch (e) { await conn.rollback(); res.status(500).json({ message: "Error" }); } finally { conn.release(); }
 });
 
 // --- SOCKET.IO ---
@@ -171,11 +182,17 @@ async function handleAIChat(msg, uid, socket) {
         const [hist] = await db.query("SELECT content, senderId FROM messages WHERE (senderId=? AND recipientId=0) OR (senderId=0 AND recipientId=?) ORDER BY createdAt DESC LIMIT 6", [uid, uid]);
         const history = hist.reverse().map(m => ({ role: m.senderId===uid?"user":"model", parts:[{text:m.content}] }));
         history.push({ role: "user", parts: [{ text: msg }] });
+        
+        // Gọi AI Generative Model
         const result = await aiModel.generateContent({ contents: history });
         const reply = result.response.text();
+
         const [r] = await db.query("INSERT INTO messages (senderId, recipientId, content) VALUES (0, ?, ?)", [uid, reply]);
         socket.emit("newMessage", { id: r.insertId, senderId: 0, content: reply, createdAt: new Date() });
-    } catch(e) { socket.emit("newMessage", { senderId:0, content:"AI đang bận.", createdAt:new Date() }); }
+    } catch(e) { 
+        console.error(e);
+        socket.emit("newMessage", { senderId:0, content:"AI đang bận, thử lại sau.", createdAt:new Date() }); 
+    }
 }
 
 io.use((socket, next) => {
