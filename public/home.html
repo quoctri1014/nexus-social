@@ -12,8 +12,9 @@
     <nav class="navbar">
       <div class="nav-container">
         <div class="nav-left">
-          <div class="logo" onclick="window.location.href='/home.html'" style="cursor: pointer">
-            <i class="fab fa-neos"></i> Nexus
+          <div class="logo" onclick="window.location.href='/home.html'">
+             <svg width="32" height="32" viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="12" fill="#6366f1"/><path d="M12 29V11L28 29V11" stroke="white" stroke-width="4" stroke-linecap="round"/></svg>
+             <span style="font-weight:800; font-size:20px; margin-left:5px; color:#1877f2;">Nexus</span>
           </div>
           <div class="search-bar">
             <i class="fas fa-search"></i>
@@ -34,7 +35,7 @@
         <div class="nav-right">
           <div class="user-profile" id="open-profile-btn" title="Chỉnh sửa hồ sơ">
             <img id="nav-avatar" src="" alt="" />
-            <div class="user-info-nav"><span id="nav-username">Loading...</span></div>
+            <div class="user-info-nav"><span id="nav-username">User</span></div>
           </div>
           <div class="nav-btn" id="theme-toggle"><i class="fas fa-adjust"></i></div>
           <div class="nav-btn" onclick="logout()" title="Đăng xuất"><i class="fas fa-sign-out-alt"></i></div>
@@ -44,12 +45,12 @@
 
     <div class="main-layout">
       <aside class="sidebar-left">
-        <div class="profile-card-mini" id="my-profile-card">
+        <div class="profile-card-mini" id="my-profile-card" style="cursor: pointer" title="Chỉnh sửa thông tin">
           <div class="pcm-cover"></div>
           <div class="pcm-info">
             <img id="sidebar-avatar" src="" alt="" />
             <h3 id="sidebar-name">User</h3>
-            <p id="sidebar-bio" class="text-bio">Chưa có tiểu sử</p>
+            <p id="sidebar-bio" class="text-bio">...</p>
             <div class="pcm-details">
               <div class="pcm-row hidden" id="sidebar-location-row"><i class="fas fa-map-marker-alt"></i> <span id="sidebar-location"></span></div>
               <div class="pcm-row hidden" id="sidebar-work-row"><i class="fas fa-briefcase"></i> <span id="sidebar-work"></span></div>
@@ -57,6 +58,7 @@
             </div>
           </div>
         </div>
+
         <div class="sidebar-content mt-20">
           <div class="menu-item active"><i class="fas fa-newspaper" style="color: #1877f2"></i><span>Bảng tin</span></div>
           <div class="menu-item" onclick="window.location.href='/friends.html'"><i class="fas fa-users" style="color: #1da1f2"></i><span>Bạn bè</span></div>
@@ -117,7 +119,7 @@
               <div class="edit-icon"><i class="fas fa-camera"></i></div>
               <input type="file" id="edit-avatar-input" hidden accept="image/*" />
             </div>
-            <p style="color: #65676b; font-size: 13px; margin-top: 5px;">Nhấn vào ảnh để thay đổi</p>
+            <p style="color: #65676b; font-size: 13px; margin-top: 5px;">Chạm để thay đổi ảnh đại diện</p>
           </div>
           <div class="profile-section">
             <h3>Thông tin chi tiết</h3>
