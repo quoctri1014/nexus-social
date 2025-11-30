@@ -4,52 +4,29 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Nexus Messenger</title>
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-    />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <link rel="stylesheet" href="chat-style.css" />
   </head>
   <body data-theme="dark">
     <div id="floating-hearts-container"></div>
 
     <nav class="navbar glass-header">
-      <div class="nav-container">
-        <div class="nav-left">
-          <div class="logo" onclick="window.location.href='/home.html'">
-            <i class="fab fa-neos"></i> Nexus
-          </div>
-          <div class="search-bar">
-            <i class="fas fa-search"></i>
-            <input type="text" placeholder="Tìm kiếm trên Nexus..." />
-          </div>
+      <div class="nav-left">
+        <div class="logo">
+          <span class="brand-text">Nexus</span>
         </div>
-
-        <div class="nav-center">
-          <a href="/home.html" class="nav-item"><i class="fas fa-home"></i></a>
-          <a href="/friends.html" class="nav-item"><i class="fas fa-user-friends"></i></a>
-          <a href="#" class="nav-item active"><i class="fas fa-comment-alt"></i></a>
-          <a href="/notifications.html" class="nav-item" title="Thông báo">
-            <div class="nav-badge hidden" id="nav-notif-badge">0</div>
-            <i class="fas fa-bell"></i>
-          </a>
-        </div>
-
-        <div class="nav-right">
-          <div class="user-profile">
-            <img id="nav-avatar" src="" alt="Avatar" />
-          </div>
-          <button class="icon-circle-btn" id="theme-toggle" title="Đổi giao diện">
-            <i class="fas fa-adjust"></i>
-          </button>
-          <button class="icon-circle-btn" id="logout-btn" title="Đăng xuất">
-            <i class="fas fa-sign-out-alt"></i>
-          </button>
-        </div>
+      </div>
+      <div class="nav-center">
+        <a href="/home.html" class="nav-item"><i class="fas fa-home"></i></a>
+        <a href="/friends.html" class="nav-item"><i class="fas fa-user-friends"></i></a>
+        <a href="#" class="nav-item active"><i class="fas fa-comment-alt"></i></a>
+        <a href="/notifications.html" class="nav-item"><i class="fas fa-bell"></i></a>
+      </div>
+      <div class="nav-right">
+        <div class="nav-profile"><img id="nav-avatar" src="" /></div>
+        <button class="icon-circle-btn" id="theme-toggle"><i class="fas fa-adjust"></i></button>
+        <button class="icon-circle-btn" id="logout-btn"><i class="fas fa-sign-out-alt"></i></button>
       </div>
     </nav>
 
@@ -57,98 +34,49 @@
       <aside class="sidebar glass-panel" id="sidebar-panel">
         <div class="sidebar-header">
           <h3>Tin nhắn</h3>
-          <div class="icon-btn-small" id="create-group-btn" title="Tạo nhóm">
-            <i class="fas fa-users-cog"></i>
-          </div>
+          <div class="icon-btn-small" id="create-group-btn" title="Tạo nhóm"><i class="fas fa-users-cog"></i></div>
         </div>
-        <div class="sidebar-search">
-          <i class="fas fa-search"></i>
-          <input type="text" placeholder="Tìm kiếm..." />
-        </div>
-        <div class="user-list custom-scroll" id="user-list">
-          </div>
+        <div class="sidebar-search"><i class="fas fa-search"></i><input type="text" placeholder="Tìm kiếm..." /></div>
+        <div class="user-list custom-scroll" id="user-list"></div>
       </aside>
 
       <main class="chat-area" id="chat-panel">
         <header class="chat-header glass-panel">
           <div class="header-left-group">
-            <button class="back-btn" id="mobile-back-btn" style="display: none;">
-              <i class="fas fa-arrow-left"></i>
-            </button>
+            <button class="back-btn" id="mobile-back-btn"><i class="fas fa-arrow-left"></i></button>
             <div class="header-user">
-              <div class="avatar-circle">
-                <img id="header-avatar" src="" alt="Chat Avatar" />
-              </div>
-              <div class="header-text">
-                <h3 id="chat-header-title">Chọn hội thoại</h3>
-                <span id="chat-status" class="status-sub">--</span>
-              </div>
+              <div class="avatar-circle"><img id="header-avatar" src="" /></div>
+              <div class="header-text"><h3 id="chat-header-title">...</h3><span id="chat-status" class="status-sub">--</span></div>
             </div>
           </div>
           <div class="header-tools">
-            <button class="tool-btn call-action" id="call-button" style="display: none" title="Gọi thoại">
-              <i class="fas fa-phone"></i>
-            </button>
-            <button class="tool-btn call-action" id="video-call-button" style="display: none" title="Video Call">
-              <i class="fas fa-video"></i>
-            </button>
-            <button class="tool-btn" id="delete-chat-btn" style="display: none; color: #ef4444" title="Xóa toàn bộ">
-              <i class="fas fa-trash"></i>
-            </button>
-            <button class="tool-btn" id="chat-settings-btn" title="Hình nền">
-              <i class="fas fa-image"></i>
-            </button>
+            <button class="tool-btn" id="call-button" title="Gọi thoại"><i class="fas fa-phone"></i></button>
+            <button class="tool-btn" id="video-call-button" title="Video Call"><i class="fas fa-video"></i></button>
+            <button class="tool-btn" id="delete-chat-btn" style="display: none; color: #ef4444" title="Xóa đoạn chat"><i class="fas fa-trash"></i></button>
+            <button class="tool-btn" id="chat-settings-btn" title="Đổi hình nền"><i class="fas fa-image"></i></button>
           </div>
         </header>
 
         <div id="chat-content-container">
           <div class="chat-overlay"></div>
-          <div id="messages" class="custom-scroll">
-            <div class="empty-placeholder">
-              <div class="empty-icon">
-                <i class="fab fa-facebook-messenger"></i>
-              </div>
-              <p>Bắt đầu trò chuyện.</p>
-            </div>
-          </div>
+          <div id="messages" class="custom-scroll"></div>
         </div>
 
         <form class="chat-footer-wrapper" id="chat-form">
           <div class="chat-footer glass-panel">
             <input type="file" id="hidden-file-input" style="display: none;" multiple accept="image/*,video/*,audio/*" />
             
-            <button type="button" class="btn-icon" id="attach-btn" title="Gửi file">
-              <i class="fas fa-paperclip"></i>
-            </button>
-
+            <button type="button" class="btn-icon" id="attach-btn"><i class="fas fa-paperclip"></i></button>
             <div class="input-box">
-              <input
-                type="text"
-                id="message-input"
-                placeholder="Nhập tin nhắn..."
-                autocomplete="off"
-                disabled
-              />
-              <button type="button" class="btn-emoji" id="emoji-trigger" title="Emoji">
-                <i class="far fa-smile"></i>
-              </button>
+              <input type="text" id="message-input" placeholder="Nhập tin nhắn..." autocomplete="off" disabled />
+              <button type="button" class="btn-emoji" id="emoji-trigger"><i class="far fa-smile"></i></button>
             </div>
-
-            <button type="button" class="btn-icon" id="secret-mode-btn" title="Tin nhắn tự hủy (10s)">
-              <i class="fas fa-bomb"></i>
-            </button>
-            <button type="button" class="btn-icon" id="voice-btn" title="Gửi ghi âm">
-              <i class="fas fa-microphone"></i>
-            </button>
-            <button type="button" class="btn-icon heart-btn" id="heart-btn" title="Thả tim">
-              <i class="fas fa-heart"></i>
-            </button>
-
-            <button type="submit" class="btn-send hidden" id="send-btn" disabled>
-              <i class="fas fa-paper-plane"></i>
-            </button>
+            <button type="button" class="btn-icon" id="secret-mode-btn" title="Tin nhắn tự hủy"><i class="fas fa-bomb"></i></button>
+            <button type="button" class="btn-icon" id="voice-btn" title="Gửi ghi âm"><i class="fas fa-microphone"></i></button>
+            <button type="button" class="btn-icon heart-btn" id="heart-btn" title="Thả tim"><i class="fas fa-heart"></i></button>
+            <button type="submit" class="btn-send hidden" id="send-btn" disabled><i class="fas fa-paper-plane"></i></button>
           </div>
-
+          
           <div class="emoji-picker hidden" id="emoji-picker">
             <div class="emoji-grid">
               <span>😀</span><span>😂</span><span>🤣</span><span>😍</span><span>🥰</span><span>😎</span>
@@ -161,7 +89,14 @@
     </div>
 
     <div id="group-modal" class="modal-overlay hidden">
+      <div class="modal-box glass-panel">
+        <h3>Tạo nhóm mới</h3>
+        <input type="text" id="group-name-input" placeholder="Đặt tên nhóm..." />
+        <div class="group-members-select custom-scroll" id="group-members-list"></div>
+        <div class="modal-actions"><button id="confirm-create-group">Tạo nhóm</button><div class="close-modal" id="close-group-modal">Hủy</div></div>
       </div>
+    </div>
+
     <div id="bg-modal" class="modal-overlay hidden">
       <div class="modal-box glass-panel">
         <h3>Đổi hình nền</h3>
@@ -179,14 +114,8 @@
         <div class="modal-actions"><button id="save-bg-btn">Áp dụng</button><div class="close-modal" id="close-bg-modal">Đóng</div></div>
       </div>
     </div>
-    
-    <div id="call-window" class="call-overlay hidden"></div>
-    <div id="incoming-call-modal" class="call-overlay hidden"></div>
-
 
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script src="main.js"></script>
-    <script src="file-handler.js"></script>
-    <script src="webrtc.js"></script>
   </body>
 </html>
