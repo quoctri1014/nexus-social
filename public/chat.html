@@ -2,293 +2,162 @@
 <html lang="vi">
   <head>
     <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Nexus Messenger</title>
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-    />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <link rel="stylesheet" href="chat-style.css" />
-    <script src="https://cdn.jsdelivr.net/npm/@joeattardi/emoji-button@4.6.0/dist/index.min.js"></script>
   </head>
-  <body data-theme="light">
-    <nav class="navbar">
-      <div class="nav-container">
-        <div class="nav-left">
-          <div
-            class="logo"
-            onclick="window.location.href='/home.html'"
-            style="cursor: pointer"
-          >
-            <i class="fab fa-neos"></i> Nexus
-          </div>
+  <body data-theme="dark">
+    
+    <div id="floating-hearts-container"></div>
+
+    <nav class="navbar glass-header">
+      <div class="nav-left">
+        <div class="logo" onclick="location.href='/home.html'">
+            <svg width="32" height="32" viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="12" fill="#6366f1"/><path d="M12 29V11L28 29V11" stroke="white" stroke-width="4" stroke-linecap="round"/></svg>
+            <span class="brand-text">Nexus</span>
         </div>
-        <div class="nav-center">
-          <a href="/home.html" class="nav-link"><i class="fas fa-home"></i></a>
-          <a href="/friends.html" class="nav-link"
-            ><i class="fas fa-users"></i
-          ></a>
-          <a href="#" class="nav-link active"
-            ><i class="fas fa-comment-alt"></i
-          ></a>
-          <a href="/notifications.html" class="nav-link"
-            ><i class="fas fa-bell"></i
-          ></a>
-        </div>
-        <div class="nav-right">
-          <div class="nav-btn" id="theme-toggle" title="Chế độ Sáng/Tối">
-            <i class="fas fa-moon"></i>
-          </div>
-          <div class="user-profile">
-            <img id="nav-avatar" src="" />
-            <div class="user-info-nav">
-              <span id="nav-username">Loading...</span>
-            </div>
-          </div>
-          <div class="nav-btn" onclick="logout()" title="Đăng xuất">
-            <i class="fas fa-sign-out-alt"></i>
-          </div>
-        </div>
+      </div>
+      <div class="nav-center">
+        <a href="/home.html" class="nav-item"><i class="fas fa-home"></i></a>
+        <a href="/friends.html" class="nav-item"><i class="fas fa-user-friends"></i></a>
+        <a href="#" class="nav-item active"><i class="fas fa-comment-alt"></i></a>
+        <a href="/notifications.html" class="nav-item" title="Thông báo">
+            <div class="nav-badge hidden" id="nav-notif-badge">0</div>
+            <i class="fas fa-bell"></i>
+        </a>
+      </div>
+      <div class="nav-right">
+        <div class="nav-profile"><img id="nav-avatar" src="" onerror="this.src='https://ui-avatars.com/api/?name=U'" /></div>
+        <button class="icon-circle-btn" id="theme-toggle"><i class="fas fa-adjust"></i></button>
+        <button class="icon-circle-btn" onclick="location.href='/logout'"><i class="fas fa-sign-out-alt"></i></button>
       </div>
     </nav>
 
-    <div class="chat-layout">
-      <aside class="chat-sidebar">
-        <div class="chat-sidebar-header">
-          <h2>Đoạn chat</h2>
-          <button id="create-group-btn" class="btn-icon" title="Tạo nhóm">
-            <i class="fas fa-users-cog"></i>
-          </button>
+    <div class="chat-container" id="main-container">
+      <aside class="sidebar glass-panel" id="sidebar-panel">
+        <div class="sidebar-header">
+            <h3>Tin nhắn</h3>
+            <div class="icon-btn-small" id="create-group-btn" title="Tạo nhóm"><i class="fas fa-users-cog"></i></div>
         </div>
-
-        <div class="chat-search">
-          <i class="fas fa-search"></i>
-          <input type="text" placeholder="Tìm kiếm đoạn chat..." />
-        </div>
-
-        <div class="chat-tabs">
-          <button class="tab-btn active" data-tab="users">Cá nhân</button>
-          <button class="tab-btn" data-tab="groups">Nhóm</button>
-        </div>
-
-        <div class="chat-list-container custom-scroll">
-          <div id="user-list" class="chat-list active"></div>
-          <div id="group-list" class="chat-list"></div>
-        </div>
+        <div class="sidebar-search"><i class="fas fa-search"></i><input type="text" placeholder="Tìm kiếm..." /></div>
+        <div class="user-list custom-scroll" id="user-list"></div>
       </aside>
 
-      <main class="chat-main">
-        <div id="chat-header">
-          <div class="chat-info">
-            <h3 id="chat-header-title">Chọn người để nhắn tin</h3>
-            <span id="chat-status" class="status-text"></span>
-          </div>
-          <div id="chat-header-actions" class="hidden">
-            <button id="call-button" class="action-icon" title="Gọi thoại">
-              <i class="fas fa-phone"></i>
-            </button>
-            <button
-              id="video-call-button"
-              class="action-icon"
-              title="Video Call"
-            >
-              <i class="fas fa-video"></i>
-            </button>
-            <button
-              id="chat-settings-btn"
-              class="action-icon"
-              title="Cài đặt hình nền"
-            >
-              <i class="fas fa-image"></i>
-            </button>
-          </div>
-        </div>
-
-        <div id="chat-content-container">
-          <div id="messages" class="custom-scroll">
-            <div class="welcome-chat">
-              <i class="fab fa-facebook-messenger"></i>
-              <h3>Chào mừng đến với Nexus Messenger</h3>
-              <p>Kết nối với bạn bè và người thân ngay lập tức.</p>
+      <main class="chat-area" id="chat-panel">
+        <header class="chat-header glass-panel">
+          <div class="header-left-group">
+            <button class="back-btn" id="mobile-back-btn"><i class="fas fa-arrow-left"></i></button>
+            <div class="header-user">
+                <div class="avatar-circle"><img id="header-avatar" src="" onerror="this.src='https://ui-avatars.com/api/?name=Chat'" /><div class="status-indicator online"></div></div>
+                <div class="header-text"><h3 id="chat-header-title">...</h3><span id="chat-status" class="status-sub">--</span></div>
             </div>
           </div>
-          <div id="typing-indicator" class="hidden">Đang nhập...</div>
+          <div class="header-tools">
+            <button class="tool-btn" id="call-button" style="display:none;"><i class="fas fa-phone"></i></button>
+            <button class="tool-btn" id="video-call-button" style="display:none;"><i class="fas fa-video"></i></button>
+            <button class="tool-btn" id="chat-settings-btn"><i class="fas fa-image"></i></button>
+          </div>
+        </header>
+
+        <div id="chat-content-container">
+            <div class="chat-overlay"></div>
+            <div id="messages" class="custom-scroll">
+                <div class="empty-placeholder"><div class="empty-icon"><i class="fab fa-facebook-messenger"></i></div><p>Bắt đầu trò chuyện.</p></div>
+            </div>
         </div>
 
-        <form id="chat-form">
-          <input type="file" id="chat-file-input" hidden multiple />
+        <form class="chat-footer-wrapper" id="chat-form">
+            <div class="chat-footer glass-panel">
+                <input type="file" id="chat-file-input" hidden />
+                <button type="button" class="btn-icon" id="attach-btn"><i class="fas fa-paperclip"></i></button>
+                
+                <div class="input-box">
+                    <input type="text" id="message-input" placeholder="Nhập tin nhắn..." autocomplete="off" disabled />
+                    <button type="button" class="btn-emoji" id="emoji-trigger"><i class="far fa-smile"></i></button>
+                </div>
+                
+                <button type="button" class="btn-icon" id="secret-mode-btn" title="Tin nhắn tự hủy"><i class="fas fa-bomb"></i></button>
+                <button type="button" class="btn-icon" id="voice-btn" title="Ghi âm"><i class="fas fa-microphone"></i></button>
+                <button type="button" class="btn-icon heart-btn" id="heart-btn" title="Thả tim"><i class="fas fa-heart"></i></button>
 
-          <button
-            type="button"
-            id="attach-btn"
-            class="input-action"
-            title="Gửi ảnh/file"
-          >
-            <i class="fas fa-plus-circle"></i>
-          </button>
-
-          <button type="button" id="emoji-btn" class="input-action">
-            <i class="far fa-smile"></i>
-          </button>
-          <div id="emoji-picker" class="hidden"></div>
-
-          <div class="input-wrapper">
-            <input
-              type="text"
-              id="message-input"
-              placeholder="Nhập tin nhắn..."
-              autocomplete="off"
-              disabled
-            />
-          </div>
-
-          <button type="submit" id="send-btn" disabled>
-            <i class="fas fa-paper-plane"></i>
-          </button>
+                <button type="submit" class="btn-send hidden" id="send-btn" disabled><i class="fas fa-paper-plane"></i></button>
+            </div>
+            
+            <div class="emoji-picker hidden" id="emoji-picker">
+                <div class="emoji-grid">
+                    <span>😀</span><span>😂</span><span>🤣</span><span>😍</span><span>🥰</span><span>😎</span>
+                    <span>😭</span><span>😡</span><span>👍</span><span>👎</span><span>❤️</span><span>💔</span>
+                    <span>🎉</span><span>🔥</span><span>💩</span><span>👻</span><span>👀</span><span>🤔</span>
+                    <span>👋</span><span>🙏</span><span>🤝</span><span>💋</span><span>🌹</span><span>💯</span>
+                </div>
+            </div>
         </form>
       </main>
     </div>
 
-    <div id="bg-modal" class="modal-backdrop hidden">
-      <div class="modal-content profile-edit-box">
-        <div class="modal-header">
-          <h2>Đổi hình nền chat</h2>
-          <i class="fas fa-times" id="close-bg-modal" style="cursor: pointer"></i>
+    <div id="group-modal" class="modal-overlay hidden">
+        <div class="modal-box glass-panel">
+            <h3>Tạo nhóm mới</h3>
+            <input type="text" id="group-name-input" placeholder="Đặt tên nhóm..." />
+            <div class="group-members-select custom-scroll" id="group-members-list"></div>
+            <div class="modal-actions"><button id="confirm-create-group">Tạo nhóm</button><div class="close-modal" id="close-group-modal">Hủy</div></div>
         </div>
-        <div class="modal-body">
-          <p style="margin-bottom: 10px">Nhập URL hình ảnh hoặc chọn màu:</p>
-          <input
-            type="text"
-            id="bg-url-input"
-            placeholder="https://example.com/image.jpg"
-            class="form-control"
-          />
-          <div
-            class="color-options"
-            style="display: flex; gap: 10px; margin-top: 10px"
-          >
-            <div
-              class="color-circle"
-              style="background: #fff; border: 1px solid #ccc"
-              onclick="setBgColor('#ffffff')"
-            ></div>
-            <div
-              class="color-circle"
-              style="background: #f0f2f5"
-              onclick="setBgColor('#f0f2f5')"
-            ></div>
-            <div
-              class="color-circle"
-              style="background: #ffecf2"
-              onclick="setBgColor('#ffecf2')"
-            ></div>
-            <div
-              class="color-circle"
-              style="background: #e6f7ff"
-              onclick="setBgColor('#e6f7ff')"
-            ></div>
-            <div
-              class="color-circle"
-              style="background: #18191a"
-              onclick="setBgColor('#18191a')"
-            ></div>
-          </div>
+    </div>
+
+    <div id="bg-modal" class="modal-overlay hidden">
+      <div class="modal-box glass-panel">
+        <h3>Đổi hình nền</h3>
+        <div class="bg-presets">
+             <div class="bg-preset" style="background: linear-gradient(135deg, #667eea, #764ba2);" onclick="changeBg('linear-gradient(135deg, #667eea, #764ba2)')"></div>
+             <div class="bg-preset" style="background: linear-gradient(135deg, #ff9a9e, #fecfef);" onclick="changeBg('linear-gradient(135deg, #ff9a9e, #fecfef)')"></div>
+             <div class="bg-preset" style="background: linear-gradient(135deg, #0ba360, #3cba92);" onclick="changeBg('linear-gradient(135deg, #0ba360, #3cba92)')"></div>
         </div>
-        <div class="modal-footer">
-          <button class="btn-secondary" id="reset-bg-btn">Mặc định</button>
-          <button class="btn-primary" id="save-bg-btn">Lưu</button>
-        </div>
+        <input type="text" id="bg-url-input" placeholder="URL ảnh..." />
+        <button id="save-bg-btn">Áp dụng Link</button>
+        <div class="close-modal" id="close-bg-modal">Đóng</div>
       </div>
     </div>
 
-    <div id="create-group-modal" class="modal-backdrop hidden">
-      <div class="modal-content profile-edit-box">
-        <div class="modal-header">
-          <h2>Tạo Nhóm Mới</h2>
-          <i
-            class="fas fa-times"
-            id="close-group-modal"
-            style="cursor: pointer"
-          ></i>
+    <div id="file-modal" class="modal-overlay hidden">
+        <div class="modal-box glass-panel">
+            <h3>Gửi tệp</h3>
+            <div class="upload-zone" onclick="document.getElementById('file-input').click()"><i class="fas fa-cloud-upload-alt"></i><p>Chọn file</p><input type="file" id="file-input" multiple hidden></div>
+            <div id="selected-files-list"></div>
+            <button id="send-file">Gửi ngay</button>
+            <div class="close-modal" id="cancel-file">Hủy</div>
         </div>
-        <div class="modal-body">
-          <input
-            type="text"
-            id="group-name-input"
-            placeholder="Tên nhóm..."
-            class="form-control"
-          />
-          <p style="margin: 10px 0; font-weight: 600">Chọn thành viên:</p>
-          <div id="modal-user-list" class="user-checklist custom-scroll"></div>
-        </div>
-        <div class="modal-footer">
-          <button id="cancel-create-group" class="btn-secondary">Hủy</button>
-          <button id="confirm-create-group" class="btn-primary">Tạo</button>
-        </div>
-      </div>
     </div>
 
-    <div id="file-modal" class="modal-backdrop hidden">
-      <div class="modal-content profile-edit-box">
-        <div class="modal-header"><h2>Gửi File</h2></div>
-        <div class="modal-body" style="text-align: center">
-          <div
-            class="file-upload-area"
-            onclick="document.getElementById('file-input').click()"
-          >
-            <i
-              class="fas fa-cloud-upload-alt"
-              style="font-size: 40px; color: var(--primary); margin-bottom: 10px"
-            ></i>
-            <p>Chọn file hoặc ảnh</p>
-            <input type="file" id="file-input" multiple style="display: none" />
-          </div>
-          <div id="selected-files-list"></div>
-        </div>
-        <div class="modal-footer">
-          <button id="cancel-file" class="btn-secondary">Hủy</button>
-          <button id="send-file" class="btn-primary" disabled>Gửi</button>
-        </div>
-      </div>
-    </div>
-
-    <div id="call-window" class="hidden">
-      <div class="video-wrapper">
+    <div id="call-window" class="call-overlay hidden">
         <video id="remoteVideo" autoplay playsinline></video>
-        <div class="local-video-container">
-          <video id="localVideo" muted autoplay playsinline></video>
+        <div class="local-video-wrapper"><video id="localVideo" autoplay playsinline muted></video></div>
+        <div class="call-controls-container">
+            <div class="call-controls glass-panel">
+                <button class="control-btn" id="toggle-mic"><i class="fas fa-microphone"></i></button>
+                <button class="control-btn hangup" id="end-call-button"><i class="fas fa-phone-slash"></i></button>
+                <button class="control-btn" id="toggle-cam"><i class="fas fa-video"></i></button>
+            </div>
         </div>
-        <div class="call-status">Đang kết nối...</div>
-      </div>
-      <div class="call-controls">
-        <button class="control-btn" id="toggle-mic">
-          <i class="fas fa-microphone"></i>
-        </button>
-        <button class="control-btn hangup" id="end-call-button">
-          <i class="fas fa-phone-slash"></i>
-        </button>
-        <button class="control-btn" id="toggle-cam">
-          <i class="fas fa-video"></i>
-        </button>
-      </div>
+    </div>
+    
+    <div id="incoming-call-modal" class="call-overlay hidden" style="z-index: 6000; background: rgba(0,0,0,0.9);">
+        <div class="incoming-call-card">
+            <div class="caller-avatar-anim"><img id="incoming-avatar" src=""><div class="ripple"></div></div>
+            <h3 id="incoming-name">...</h3>
+            <p>Đang gọi...</p>
+            <div class="incoming-actions">
+                <button class="btn-reject" id="btn-reject-call"><i class="fas fa-phone-slash"></i></button>
+                <button class="btn-accept" id="btn-accept-call"><i class="fas fa-phone"></i></button>
+            </div>
+        </div>
+        <audio id="ringtone" loop src="https://raw.githubusercontent.com/muaz-khan/WebRTC-Experiment/master/socketio-over-nodejs/public/ringtone.mp3"></audio>
     </div>
 
-    <script
-      src="https://cdn.socket.io/4.7.5/socket.io.min.js"
-      integrity="sha384-2huaZvOR9iDzHqslqwpR87isEmrfxqyWOF7hr7BY6KG0+hVKLoEXMPUJw3ynWuhO"
-      crossorigin="anonymous"
-    ></script>
-
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script src="main.js"></script>
-    <script src="group-chat.js"></script>
-    <script src="webrtc.js"></script>
     <script src="file-handler.js"></script>
+    <script src="webrtc.js"></script>
   </body>
 </html>
