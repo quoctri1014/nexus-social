@@ -8,11 +8,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const themeToggle = document.getElementById("theme-toggle");
   const currentTheme = localStorage.getItem("theme") || "dark";
   document.body.setAttribute("data-theme", currentTheme);
-  themeToggle.addEventListener("click", () => {
-      const newTheme = document.body.getAttribute("data-theme") === "dark" ? "light" : "dark";
-      document.body.setAttribute("data-theme", newTheme);
-      localStorage.setItem("theme", newTheme);
-  });
+  
+  if(themeToggle) {
+      themeToggle.addEventListener("click", () => {
+          const newTheme = document.body.getAttribute("data-theme") === "dark" ? "light" : "dark";
+          document.body.setAttribute("data-theme", newTheme);
+          localStorage.setItem("theme", newTheme);
+      });
+  }
 
   // 2. INIT & VARS
   window.socket = io({ auth: { token } });
@@ -27,18 +30,27 @@ document.addEventListener("DOMContentLoaded", () => {
   const headerAvatarContainer = document.querySelector(".chat-header .avatar-circle");
   const chatContent = document.getElementById("chat-content-container");
 
+  // Mobile Back
+  const mobileBack = document.getElementById("mobile-back-btn");
+  if(mobileBack) mobileBack.addEventListener("click", () => {
+      chatContainer.classList.remove("mobile-active");
+      window.currentChatContext = { id: null };
+  });
+
   // Load BG
   const savedBg = localStorage.getItem("chatBg");
-  if (savedBg) chatContent.style.backgroundImage = savedBg.startsWith('http') ? `url('${savedBg}')` : savedBg;
+  if (savedBg && chatContent) chatContent.style.backgroundImage = savedBg.startsWith('http') ? `url('${savedBg}')` : savedBg;
 
   fetch("/api/me", { headers: { Authorization: `Bearer ${token}` } })
     .then((r) => r.json())
     .then((u) => {
       window.myUserId = u.id;
       window.myUsername = u.username;
-      document.getElementById("nav-avatar").src = getAvatar(u);
+      const navAvt = document.getElementById("nav-avatar");
+      if(navAvt) navAvt.src = getAvatar(u);
     });
 
+  // AVATAR LOGIC
   function getAvatar(u) {
     if (u.id === 0 || u.userId === 0 || u.username === "AI_Assistant") return '<i class="fas fa-robot ai-avatar-icon"></i>';
     if (u.avatar && u.avatar.trim() !== "") return u.avatar.startsWith("http") || u.avatar.startsWith("data:") ? u.avatar : `/uploads/${u.avatar}`;
@@ -46,10 +58,11 @@ document.addEventListener("DOMContentLoaded", () => {
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(n)}&background=random&color=fff&size=128&bold=true`;
   }
 
-  function scrollToBottom() { messagesContainer.scrollTop = messagesContainer.scrollHeight; }
+  function scrollToBottom() { if(messagesContainer) messagesContainer.scrollTop = messagesContainer.scrollHeight; }
 
-  // 3. SOCKET & CHAT
+  // 3. USER LIST
   window.socket.on("userList", (users) => {
+    if(!userListDiv) return;
     userListDiv.innerHTML = "";
     window.allUsers = users; 
     users.forEach((u) => {
@@ -67,18 +80,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function selectChat(user) {
     window.currentChatContext = { id: user.userId, name: user.nickname || user.username, type: "user" };
-    document.getElementById("chat-header-title").textContent = window.currentChatContext.name;
-    document.getElementById("chat-status").textContent = user.userId === 0 ? "Trợ lý AI" : (user.online ? "Đang hoạt động" : "Ngoại tuyến");
+    const title = document.getElementById("chat-header-title");
+    const status = document.getElementById("chat-status");
+    if(title) title.textContent = window.currentChatContext.name;
+    if(status) status.textContent = user.userId === 0 ? "Trợ lý AI" : (user.online ? "Đang hoạt động" : "Ngoại tuyến");
     
-    headerAvatarContainer.innerHTML = "";
-    const avt = getAvatar(user);
-    if(avt.startsWith("<i")) { headerAvatarContainer.className="avatar-circle ai-icon-wrapper"; headerAvatarContainer.innerHTML = avt; }
-    else { headerAvatarContainer.className="avatar-circle"; headerAvatarContainer.innerHTML = `<img src="${avt}">`; }
+    if(headerAvatarContainer) {
+        headerAvatarContainer.innerHTML = "";
+        const avt = getAvatar(user);
+        if(avt.startsWith("<i")) { headerAvatarContainer.className="avatar-circle ai-icon-wrapper"; headerAvatarContainer.innerHTML = avt; }
+        else { headerAvatarContainer.className="avatar-circle"; headerAvatarContainer.innerHTML = `<img src="${avt}">`; }
+    }
 
-    messagesContainer.innerHTML = "";
-    messageInput.disabled = false;
-    document.getElementById("send-btn").disabled = false;
-    chatContainer.classList.add("mobile-active");
+    if(messagesContainer) messagesContainer.innerHTML = "";
+    if(messageInput) messageInput.disabled = false;
+    const sendBtn = document.getElementById("send-btn");
+    if(sendBtn) sendBtn.disabled = false;
+    
+    if(chatContainer) chatContainer.classList.add("mobile-active");
 
     window.socket.emit("loadPrivateHistory", { recipientId: user.userId });
     
@@ -87,7 +106,9 @@ document.addEventListener("DOMContentLoaded", () => {
     window.dispatchEvent(new Event("contextChanged"));
   }
 
+  // 4. MESSAGES
   window.socket.on("privateHistory", ({ messages }) => {
+    if(!messagesContainer) return;
     messagesContainer.innerHTML = "";
     messages.forEach(m => appendMessage(m, false));
     scrollToBottom();
@@ -127,25 +148,36 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const time = new Date(msg.createdAt || Date.now()).toLocaleTimeString("vi-VN", {hour:"2-digit", minute:"2-digit"});
     div.innerHTML = `${content}<span class="timestamp">${time}</span>`;
-    messagesContainer.appendChild(div);
+    if(messagesContainer) messagesContainer.appendChild(div);
     if(shouldScroll) scrollToBottom();
   };
 
-  document.getElementById("chat-form").addEventListener("submit", (e) => {
-    e.preventDefault();
-    const val = messageInput.value.trim();
-    if (!val || !window.currentChatContext.id) return;
-    window.socket.emit("privateMessage", { recipientId: window.currentChatContext.id, content: val });
-    messageInput.value = "";
-  });
+  const chatForm = document.getElementById("chat-form");
+  if(chatForm) {
+      chatForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const val = messageInput.value.trim();
+        if (!val || !window.currentChatContext.id) return;
+        window.socket.emit("privateMessage", { recipientId: window.currentChatContext.id, content: val });
+        messageInput.value = "";
+      });
+  }
 
-  // 4. EMOJI PICKER
-  const picker = new EmojiButton({ position: 'top-start', theme: 'auto', autoHide: false });
-  const emojiTrigger = document.getElementById('emoji-trigger');
-  picker.on('emoji', selection => { messageInput.value += selection.emoji; messageInput.focus(); });
-  emojiTrigger.addEventListener('click', () => picker.togglePicker(emojiTrigger));
+  // 5. EMOJI (MANUAL)
+  const emojiBtn = document.getElementById("emoji-trigger");
+  const emojiPicker = document.getElementById("emoji-picker");
+  if(emojiBtn && emojiPicker) {
+      emojiBtn.addEventListener("click", (e) => { e.stopPropagation(); emojiPicker.classList.toggle("hidden"); });
+      document.querySelectorAll(".emoji-grid span").forEach(s => {
+          s.addEventListener("click", () => {
+              if(messageInput) { messageInput.value += s.innerText; messageInput.focus(); }
+              emojiPicker.classList.add("hidden");
+          });
+      });
+      document.addEventListener("click", (e) => { if(!emojiPicker.contains(e.target) && e.target !== emojiBtn) emojiPicker.classList.add("hidden"); });
+  }
 
-  // 5. VOICE CHAT (FIXED)
+  // 6. VOICE CHAT
   const voiceBtn = document.getElementById("voice-btn");
   let mediaRecorder, audioChunks=[], isRecording=false;
   if(voiceBtn) {
@@ -158,11 +190,11 @@ document.addEventListener("DOMContentLoaded", () => {
                   audioChunks=[];
                   mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
                   mediaRecorder.onstop = async () => {
-                      const blob = new Blob(audioChunks, {type:'audio/webm'}); // WebM chuẩn cho trình duyệt
+                      const blob = new Blob(audioChunks, {type:'audio/webm'});
                       const formData = new FormData();
                       formData.append("files", blob, `voice_${Date.now()}.webm`);
                       voiceBtn.classList.remove("recording");
-                      messageInput.placeholder = "Đang gửi...";
+                      if(messageInput) messageInput.placeholder = "Đang gửi...";
                       
                       const res = await fetch("/api/upload", {method:"POST", headers:{"Authorization":`Bearer ${token}`}, body:formData});
                       const files = await res.json();
@@ -171,11 +203,12 @@ document.addEventListener("DOMContentLoaded", () => {
                           window.socket.emit("privateMessage", {recipientId: window.currentChatContext.id, content});
                       }
                       stream.getTracks().forEach(t=>t.stop());
-                      messageInput.placeholder = "Nhập tin nhắn...";
+                      if(messageInput) messageInput.placeholder = "Nhập tin nhắn...";
                   };
                   mediaRecorder.start();
                   isRecording=true;
                   voiceBtn.classList.add("recording");
+                  if(messageInput) messageInput.placeholder = "Đang ghi âm...";
               } catch(e) { alert("Lỗi Mic: "+e.message); }
           } else {
               mediaRecorder.stop();
@@ -184,61 +217,72 @@ document.addEventListener("DOMContentLoaded", () => {
       });
   }
 
-  // 6. GROUP & UTILS
-  document.getElementById("mobile-back-btn").addEventListener("click", () => {
-      chatContainer.classList.remove("mobile-active");
-      window.currentChatContext = { id: null };
-  });
-
+  // 7. GROUP & UTILS
   const groupModal = document.getElementById("group-modal");
   const membersListDiv = document.getElementById("group-members-list");
-  document.getElementById("create-group-btn").addEventListener("click", () => {
-      groupModal.classList.remove("hidden");
-      membersListDiv.innerHTML = "";
-      if(window.allUsers) {
-          window.allUsers.forEach(u => {
-              if(u.userId !== window.myUserId && u.userId !== 0) {
-                  const div = document.createElement("div");
-                  div.className = "member-option";
-                  div.innerHTML = `<label style="display:flex;align-items:center;gap:10px;width:100%"><input type="checkbox" value="${u.userId}"><span>${u.nickname || u.username}</span></label>`;
-                  membersListDiv.appendChild(div);
+  const createGroupBtn = document.getElementById("create-group-btn");
+  
+  if(createGroupBtn) {
+      createGroupBtn.addEventListener("click", () => {
+          if(groupModal) groupModal.classList.remove("hidden");
+          if(membersListDiv) {
+              membersListDiv.innerHTML = "";
+              if(window.allUsers) {
+                  window.allUsers.forEach(u => {
+                      if(u.userId !== window.myUserId && u.userId !== 0) {
+                          const div = document.createElement("div");
+                          div.className = "member-option";
+                          div.innerHTML = `<label style="display:flex;align-items:center;gap:10px;width:100%"><input type="checkbox" value="${u.userId}"><span>${u.nickname || u.username}</span></label>`;
+                          membersListDiv.appendChild(div);
+                      }
+                  });
               }
-          });
-      }
-  });
-  document.getElementById("close-group-modal").addEventListener("click", () => groupModal.classList.add("hidden"));
-  document.getElementById("confirm-create-group").addEventListener("click", async () => {
-      const groupName = document.getElementById("group-name-input").value.trim();
-      const checkedBoxes = membersListDiv.querySelectorAll("input:checked");
-      const members = Array.from(checkedBoxes).map(cb => parseInt(cb.value));
-      if(!groupName) return alert("Nhập tên nhóm!");
-      if(members.length === 0) return alert("Chọn thành viên!");
-      
-      try {
-          const res = await fetch("/api/groups/create", {
-              method: "POST",
-              headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-              body: JSON.stringify({ name: groupName, members: members })
-          });
-          if(res.ok) { alert("Tạo nhóm thành công!"); groupModal.classList.add("hidden"); window.location.reload(); }
-      } catch(e) { console.error(e); }
-  });
+          }
+      });
+  }
 
-  // Change Background
-  window.changeBg = function(gradient) {
-      chatContent.style.backgroundImage = "none";
-      chatContent.style.background = gradient;
-      localStorage.setItem("chatBg", gradient);
-      document.getElementById("bg-modal").classList.add("hidden");
-  };
-  document.getElementById("chat-settings-btn").addEventListener("click", () => document.getElementById("bg-modal").classList.remove("hidden"));
-  document.getElementById("close-bg-modal").addEventListener("click", () => document.getElementById("bg-modal").classList.add("hidden"));
-  document.getElementById("save-bg-btn").addEventListener("click", () => {
-      const url = document.getElementById("bg-url-input").value;
-      if(url) { chatContent.style.backgroundImage = `url('${url}')`; localStorage.setItem("chatBg", url); document.getElementById("bg-modal").classList.add("hidden"); }
-  });
+  const closeGroupBtn = document.getElementById("close-group-modal");
+  if(closeGroupBtn) closeGroupBtn.addEventListener("click", () => groupModal.classList.add("hidden"));
+
+  const confirmGroupBtn = document.getElementById("confirm-create-group");
+  if(confirmGroupBtn) {
+      confirmGroupBtn.addEventListener("click", async () => {
+          const groupName = document.getElementById("group-name-input").value.trim();
+          const checkedBoxes = membersListDiv.querySelectorAll("input:checked");
+          const members = Array.from(checkedBoxes).map(cb => parseInt(cb.value));
+          if(!groupName) return alert("Nhập tên nhóm!");
+          if(members.length === 0) return alert("Chọn thành viên!");
+          
+          try {
+              const res = await fetch("/api/groups/create", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                  body: JSON.stringify({ name: groupName, members: members })
+              });
+              if(res.ok) { alert("Tạo nhóm thành công!"); groupModal.classList.add("hidden"); window.location.reload(); }
+          } catch(e) { console.error(e); }
+      });
+  }
 
   // Attach
   const attachBtn = document.getElementById("attach-btn");
   if (attachBtn) attachBtn.addEventListener("click", () => { if (window.openFileModal) window.openFileModal(); });
+  
+  const settingsBtn = document.getElementById("chat-settings-btn");
+  const closeSettings = document.getElementById("close-bg-modal");
+  const bgModal = document.getElementById("bg-modal");
+  if(settingsBtn) settingsBtn.addEventListener("click", () => bgModal.classList.remove("hidden"));
+  if(closeSettings) closeSettings.addEventListener("click", () => bgModal.classList.add("hidden"));
+  
+  const saveBgBtn = document.getElementById("save-bg-btn");
+  if(saveBgBtn) {
+      saveBgBtn.addEventListener("click", () => {
+          const url = document.getElementById("bg-url-input").value;
+          if(url) { 
+              chatContent.style.backgroundImage = `url('${url}')`; 
+              localStorage.setItem("chatBg", url); 
+              bgModal.classList.add("hidden"); 
+          }
+      });
+  }
 });
