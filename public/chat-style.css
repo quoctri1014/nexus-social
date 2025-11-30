@@ -89,15 +89,16 @@ body {
 #messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
 
 /* Tin nhắn: Sửa padding và position để thùng rác không đè chữ */
-.message { max-width: 75%; padding: 10px 14px; border-radius: 18px; font-size: 15px; position: relative; word-wrap: break-word; line-height: 1.5; min-width: 80px; margin-bottom: 5px; }
+.message { max-width: 75%; padding: 10px 14px; border-radius: 18px; font-size: 15px; position: relative; word-wrap: break-word; line-height: 1.5; min-width: 80px; margin-bottom: 5px; transition: opacity 0.5s; }
 .message.other { align-self: flex-start; background: rgba(255, 255, 255, 0.1); color: var(--text-main); border-bottom-left-radius: 4px; }
 .message.user { align-self: flex-end; background: var(--primary); color: white; border-bottom-right-radius: 4px; }
 .message.system { align-self: center; background: rgba(255,255,255,0.1); border-radius: 20px; font-size: 12px; padding: 5px 15px; color: #cbd5e1; }
+.message.secret { border: 2px solid #ef4444; }
 .timestamp { display: block; font-size: 10px; margin-top: 4px; opacity: 0.7; text-align: right; width: 100%; }
 
 /* Thùng rác: Hiện bên ngoài tin nhắn */
 .delete-msg-btn { position: absolute; top: 50%; transform: translateY(-50%); left: -35px; width: 26px; height: 26px; border-radius: 50%; background: rgba(255, 255, 255, 0.1); color: #ef4444; font-size: 12px; display: none; align-items: center; justify-content: center; cursor: pointer; z-index: 10; transition: all 0.2s; }
-.message.user:hover .delete-msg-btn { display: flex; } /* Chỉ hiện khi hover */
+.message.user:hover .delete-msg-btn { display: flex; }
 .delete-msg-btn:hover { background: #ef4444; color: white; }
 
 .chat-footer-wrapper { padding: 15px; background: var(--glass-bg); border-top: 1px solid var(--glass-border); }
