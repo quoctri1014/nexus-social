@@ -7,15 +7,12 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import db from "./db.js";
 import path from "path";
-import fs from "fs";
 import { fileURLToPath } from "url";
 import multer from "multer";
 import nodemailer from "nodemailer";
 
-// --- THƯ VIỆN AI ---
+// THƯ VIỆN AI & CLOUD
 import { GoogleGenerativeAI } from "@google/generative-ai";
-
-// --- CLOUDINARY ---
 import { v2 as cloudinary } from 'cloudinary';
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
 
@@ -26,7 +23,7 @@ const __dirname = path.dirname(__filename);
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const JWT_SECRET = process.env.JWT_SECRET || "secret_key_nexus_2025";
 
-// AI INIT (Bọc try-catch để không sập nếu lỗi Key)
+// AI INIT
 let aiModel = null;
 if (GEMINI_API_KEY) {
     try {
@@ -44,24 +41,17 @@ const onlineUsers = {};
 app.use(express.static("public"));
 app.use(express.json());
 
-// --- CẤU HÌNH UPLOAD (FIX LỖI THIẾU CONFIG) ---
-if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
-    console.error("❌ LỖI: Thiếu cấu hình Cloudinary trên Render! Hãy kiểm tra tab Environment.");
+// CLOUDINARY
+if(process.env.CLOUDINARY_CLOUD_NAME) {
+    cloudinary.config({
+      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+      api_key: process.env.CLOUDINARY_API_KEY,
+      api_secret: process.env.CLOUDINARY_API_SECRET
+    });
 }
-
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
-});
-
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
-  params: {
-    folder: 'nexus_uploads',
-    resource_type: 'auto',
-    allowed_formats: ['jpg', 'png', 'jpeg', 'gif', 'webm', 'mp3', 'wav', 'mp4'],
-  },
+  params: { folder: 'nexus_uploads', resource_type: 'auto', allowed_formats: ['jpg', 'png', 'mp3', 'wav', 'mp4'] },
 });
 const upload = multer({ storage });
 
@@ -71,15 +61,14 @@ const transporter = nodemailer.createTransport({
 });
 const otpStore = new Map();
 
-// MIDDLEWARE AUTH
+// MIDDLEWARE
 const authenticateToken = (req, res, next) => {
   const token = req.headers["authorization"]?.split(" ")[1];
   if (!token) return res.sendStatus(401);
   jwt.verify(token, JWT_SECRET, (err, user) => { if (err) return res.sendStatus(403); req.user = user; next(); });
 };
 
-// ================= ROUTES =================
-
+// API (Giữ nguyên các API Auth/Upload/Group cũ)
 app.post("/api/send-otp", async (req, res) => {
   const { email, username } = req.body;
   try {
@@ -124,107 +113,10 @@ app.get("/api/me", authenticateToken, async (req, res) => {
   res.json(r[0]);
 });
 
-app.get("/api/users/search", authenticateToken, async (req, res) => {
-  const query = req.query.q;
-  if (!query) return res.json([]);
-  try {
-    const [users] = await db.query("SELECT id, username, nickname, avatar FROM users WHERE (username LIKE ? OR nickname LIKE ?) AND id != ? AND id != 0 LIMIT 20", [`%${query}%`, `%${query}%`, req.user.userId]);
-    res.json(users);
-  } catch (e) { res.status(500).json({ message: "Error" }); }
-});
-
-app.post("/api/profile/update", authenticateToken, async (req, res) => {
-  const { nickname, avatar, bio, location, work, education } = req.body;
-  try {
-    await db.query(`UPDATE users SET nickname=?, avatar=?, bio=?, location=?, work=?, education=? WHERE id=?`, [nickname, avatar, bio, location, work, education, req.user.userId]);
-    res.json({ message: "OK" });
-  } catch (e) { res.status(500).json({ message: "Error" }); }
-});
-
-app.get("/api/users/suggestions", authenticateToken, async (req, res) => {
-  try {
-    const [u] = await db.query(`SELECT id, username, nickname, avatar FROM users WHERE id != ? AND id != 0 AND id NOT IN (SELECT receiverId FROM friend_requests WHERE senderId = ? UNION SELECT senderId FROM friend_requests WHERE receiverId = ?) LIMIT 20`, [req.user.userId, req.user.userId, req.user.userId]);
-    res.json(u);
-  } catch (e) { res.status(500).json({ message: "Error" }); }
-});
-
-app.get("/api/users/:id", authenticateToken, async (req, res) => {
-  try {
-    const [rows] = await db.query("SELECT id, username, nickname, avatar, bio, location, work, education FROM users WHERE id = ?", [req.params.id]);
-    if (rows.length === 0) return res.status(404).json({ message: "Not found" });
-    const [posts] = await db.query(`SELECT * FROM posts WHERE userId = ? ORDER BY createdAt DESC`, [req.params.id]);
-    res.json({ user: rows[0], posts: posts });
-  } catch (e) { res.status(500).json({ message: "Error" }); }
-});
-
-app.get("/api/friends", authenticateToken, async (req, res) => {
-  try {
-    const [f] = await db.query(`SELECT u.id, u.username, u.nickname, u.avatar FROM users u JOIN friend_requests fr ON (fr.senderId = u.id OR fr.receiverId = u.id) WHERE (fr.senderId = ? OR fr.receiverId = ?) AND fr.status = 'accepted' AND u.id != ?`, [req.user.userId, req.user.userId, req.user.userId]);
-    res.json(f);
-  } catch (e) { res.status(500).json({ message: "Error" }); }
-});
-
-app.get("/api/friends/pending", authenticateToken, async (req, res) => {
-  try {
-    const [reqs] = await db.query(`SELECT fr.id as requestId, u.id as userId, u.username, u.nickname, u.avatar FROM friend_requests fr JOIN users u ON fr.senderId = u.id WHERE fr.receiverId = ? AND fr.status = 'pending'`, [req.user.userId]);
-    res.json(reqs);
-  } catch (e) { res.status(500).json({ message: "Error" }); }
-});
-
-app.post("/api/friends/request", authenticateToken, async (req, res) => {
-  try {
-    await db.query("INSERT INTO friend_requests (senderId, receiverId) VALUES (?, ?)", [req.user.userId, req.body.receiverId]);
-    res.json({ message: "OK" });
-  } catch (e) { res.status(500).json({ message: "Duplicate" }); }
-});
-
-app.post("/api/friends/accept", authenticateToken, async (req, res) => {
-  try {
-    await db.query("UPDATE friend_requests SET status = 'accepted' WHERE id = ?", [req.body.requestId]);
-    res.json({ message: "OK" });
-  } catch (e) { res.status(500).json({ message: "Error" }); }
-});
-
-app.get("/api/posts", authenticateToken, async (req, res) => {
-  try {
-    const [posts] = await db.query(`SELECT p.*, u.username, u.nickname, u.avatar FROM posts p JOIN users u ON p.userId = u.id ORDER BY p.createdAt DESC LIMIT 50`);
-    res.json(posts);
-  } catch (e) { res.status(500).json({ message: "Error" }); }
-});
-
-app.post("/api/posts", authenticateToken, async (req, res) => {
-  try {
-    await db.query("INSERT INTO posts (userId, content, image) VALUES (?, ?, ?)", [req.user.userId, req.body.content, req.body.image]);
-    res.json({ message: "Posted" });
-  } catch (e) { res.status(500).json({ message: "Error" }); }
-});
-
-app.get("/api/stories", authenticateToken, async (req, res) => {
-  try {
-    const [s] = await db.query("SELECT s.*, u.username, u.nickname, u.avatar FROM stories s JOIN users u ON s.userId = u.id WHERE s.createdAt >= NOW() - INTERVAL 1 DAY ORDER BY s.createdAt DESC");
-    res.json(s);
-  } catch (e) { res.status(500).json({ message: "Error" }); }
-});
-
-app.post("/api/stories", authenticateToken, async (req, res) => {
-  try {
-    await db.query("INSERT INTO stories (userId, image, expiresAt) VALUES (?, ?, ?)", [req.user.userId, req.body.image, new Date(Date.now() + 86400000)]);
-    res.json({ message: "OK" });
-  } catch (e) { res.status(500).json({ message: "Error" }); }
-});
-
 app.post("/api/upload", upload.array("files", 5), (req, res) => {
   if (!req.files) return res.status(400).json({ message: "No file" });
   const files = req.files.map(f => ({ type: f.mimetype.includes("image") ? "image" : "audio", name: f.originalname, url: f.path }));
   res.json(files);
-});
-
-app.get("/api/notifications", authenticateToken, async (req, res) => {
-    try {
-        const uid = req.user.userId;
-        const [reqs] = await db.query(`SELECT fr.id, u.username, u.nickname, u.avatar, fr.createdAt, 'request' as type FROM friend_requests fr JOIN users u ON fr.senderId = u.id WHERE fr.receiverId = ? AND fr.status = 'pending'`, [uid]);
-        res.json(reqs);
-    } catch (e) { res.status(500).json({ message: "Error" }); }
 });
 
 app.post("/api/groups/create", authenticateToken, async (req, res) => {
@@ -239,6 +131,7 @@ app.post("/api/groups/create", authenticateToken, async (req, res) => {
     const values = members.map(uid => [g.insertId, uid]);
     if(values.length > 0) await conn.query("INSERT INTO group_members (groupId, userId) VALUES ?", [values]);
     await conn.commit();
+    
     const [gInfo] = await db.query("SELECT * FROM groups WHERE id=?", [g.insertId]);
     members.forEach(uid => {
         if (onlineUsers[uid]) {
@@ -251,7 +144,8 @@ app.post("/api/groups/create", authenticateToken, async (req, res) => {
   } catch (e) { await conn.rollback(); res.status(500).json({ message: "Error" }); } finally { conn.release(); }
 });
 
-// SOCKET
+// --- SOCKET.IO (PHẦN QUAN TRỌNG) ---
+
 async function handleAIChat(msg, uid, socket) {
     if(!aiModel) return socket.emit("newMessage", {senderId:0, content:"AI chưa sẵn sàng.", createdAt:new Date()});
     try {
@@ -269,25 +163,30 @@ io.use((socket, next) => {
 
 io.on("connection", async (socket) => {
   const { userId } = socket.user;
+  
+  // 1. Lưu User Online
   onlineUsers[userId] = { socketId: socket.id, username: socket.user.username };
+  console.log(`User ${socket.user.username} connected`);
 
-  const sendUserList = async () => {
+  // 2. Gửi danh sách User ngay lập tức (Broadcast)
+  const broadcastUserList = async () => {
       const [users] = await db.query("SELECT id, username, nickname, avatar FROM users");
-      const list = users.map(u => ({...u, online: !!onlineUsers[u.id] || u.id===0 }));
-      io.emit("userList", list);
+      const list = users.map(u => ({
+          userId: u.id,
+          username: u.username,
+          nickname: u.nickname,
+          avatar: u.avatar,
+          online: !!onlineUsers[u.id] || u.id === 0 // AI luôn online
+      }));
+      io.emit("userList", list); // Gửi cho tất cả mọi người
   };
-  await sendUserList();
+  await broadcastUserList(); // Gọi ngay khi có người vào
 
-  // --- FIX LỖI CRASH TẠI ĐÂY ---
   socket.on("privateMessage", async (data) => {
     const content = data.content;
     const recipientId = data.recipientId;
 
-    // Bắt buộc phải có recipientId (hoặc là 0 nếu chat với AI) và content
-    if (recipientId === undefined || recipientId === null || content === undefined) {
-        console.warn("Socket Error: Dữ liệu tin nhắn không hợp lệ", data);
-        return; // Dừng ngay, không chạy lệnh SQL để tránh sập
-    }
+    if (recipientId === undefined || recipientId === null || !content) return;
 
     if (recipientId === 0) {
         await db.query("INSERT INTO messages (senderId, recipientId, content) VALUES (?, 0, ?)", [userId, content]);
@@ -295,11 +194,12 @@ io.on("connection", async (socket) => {
         await handleAIChat(content, userId, socket);
         return;
     }
-    
     const [r] = await db.query("INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)", [userId, recipientId, content]);
     const msg = { id: r.insertId, senderId: userId, content: content, createdAt: new Date() };
     
-    if (onlineUsers[recipientId]) io.to(onlineUsers[recipientId].socketId).emit("newMessage", msg);
+    if (onlineUsers[recipientId]) {
+      io.to(onlineUsers[recipientId].socketId).emit("newMessage", msg);
+    }
     socket.emit("newMessage", msg);
   });
 
@@ -308,6 +208,7 @@ io.on("connection", async (socket) => {
     socket.emit("privateHistory", { recipientId, messages: msgs });
   });
 
+  // WebRTC
   socket.on("callOffer", async (d) => {
     if(!d.recipientId && d.recipientId !== 0) return;
     const rec = onlineUsers[d.recipientId];
@@ -327,7 +228,10 @@ io.on("connection", async (socket) => {
   socket.on("callEnd", (d) => onlineUsers[d.recipientId] && io.to(onlineUsers[d.recipientId].socketId).emit("callEnd"));
   socket.on("callReject", (d) => onlineUsers[d.callerId] && io.to(onlineUsers[d.callerId].socketId).emit("callReject", { senderId: userId, reason: d.reason }));
 
-  socket.on("disconnect", () => { delete onlineUsers[userId]; sendUserList(); });
+  socket.on("disconnect", async () => {
+      delete onlineUsers[userId];
+      await broadcastUserList(); // Cập nhật lại list khi có người thoát
+  });
 });
 
 app.get("*", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
