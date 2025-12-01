@@ -1,821 +1,226 @@
-/* CONFIG */
+/* --- CÁC BIẾN MÀU SẮC --- */
 :root {
   --bg-body: #f0f2f5;
   --bg-card: #ffffff;
   --primary: #1877f2;
-  --primary-hover: #166fe5;
   --text-main: #050505;
   --text-sub: #65676b;
-  --hover-bg: #e4e6eb;
+  --hover-bg: #f2f2f2;
   --border: #ced0d4;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-  --radius: 12px;
   --header-h: 60px;
+  
+  /* Màu cảm xúc */
+  --like-color: #1877f2;
+  --love-color: #f63459;
+  --care-color: #f7b125;
+  --haha-color: #f7b125;
+  --wow-color: #f7b125;
+  --sad-color: #f7b125;
+  --angry-color: #e4605e;
 }
 
-/* DARK MODE */
 [data-theme="dark"] {
   --bg-body: #18191a;
   --bg-card: #242526;
-  --primary: #2d88ff;
   --text-main: #e4e6eb;
   --text-sub: #b0b3b8;
   --hover-bg: #3a3b3c;
   --border: #393a3b;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
 body {
-  font-family: "Inter", sans-serif;
-  background-color: var(--bg-body);
-  color: var(--text-main);
-  overflow-x: hidden;
-  transition: background-color 0.3s, color 0.3s;
-}
-
-/* NAVBAR */
-.navbar {
-  position: fixed;
-  top: 0;
-  width: 100%;
-  height: var(--header-h);
-  background: var(--bg-card);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  z-index: 1000;
-  display: flex;
-  justify-content: center;
-  border-bottom: 1px solid var(--border);
-}
-.nav-container {
-  width: 100%;
-  max-width: 1400px;
-  padding: 0 20px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.nav-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 300px;
-}
-.logo {
-  font-size: 24px;
-  font-weight: 800;
-  color: var(--primary);
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  cursor: pointer;
-}
-.search-bar {
+  font-family: "Segoe UI", Helvetica, Arial, sans-serif;
   background: var(--bg-body);
-  padding: 8px 15px;
-  border-radius: 50px;
-  display: flex;
-  align-items: center;
-  color: var(--text-sub);
-  width: 100%;
-  border: 1px solid transparent;
-}
-.search-bar:focus-within {
-  border-color: var(--primary);
-}
-.search-bar input {
-  border: none;
-  background: transparent;
-  outline: none;
-  margin-left: 10px;
-  width: 100%;
-  font-size: 15px;
   color: var(--text-main);
-}
-.nav-center {
-  display: flex;
-  gap: 10px;
-  justify-content: center;
-  flex: 1;
-}
-.nav-link {
-  width: 100px;
-  height: 50px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-  color: var(--text-sub);
-  border-radius: 10px;
-  position: relative;
-  text-decoration: none;
-  transition: 0.2s;
-}
-.nav-link:hover {
-  background: var(--hover-bg);
-}
-.nav-link.active {
-  color: var(--primary);
-  border-bottom: 3px solid var(--primary);
-  border-radius: 0;
-}
-.badge {
-  position: absolute;
-  top: 5px;
-  right: 25px;
-  background: #e41e3f;
-  color: white;
-  font-size: 10px;
-  padding: 2px 6px;
-  border-radius: 50%;
-  border: 2px solid var(--bg-card);
-}
-.nav-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 300px;
-  justify-content: flex-end;
-}
-.nav-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: var(--hover-bg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: 0.2s;
-  color: var(--text-main);
-  border: none;
-}
-.nav-btn:hover {
-  background: var(--border);
-}
-.user-profile {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 5px 10px;
-  border-radius: 50px;
-  cursor: pointer;
-  transition: 0.2s;
-}
-.user-profile:hover {
-  background: var(--hover-bg);
-}
-.user-profile img {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 1px solid var(--border);
-}
-.user-info-nav {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.2;
-}
-.user-info-nav span {
-  font-weight: 600;
-  font-size: 14px;
+  margin: 0;
 }
 
-/* HAMBURGER MENU */
-.hamburger-btn {
-  display: none;
-  width: 40px;
-  height: 40px;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 5px;
-  color: var(--text-main);
-  margin-right: 10px;
-}
+/* --- NAV & LAYOUT (Cơ bản) --- */
+.navbar { height: var(--header-h); background: var(--bg-card); position: fixed; top: 0; width: 100%; box-shadow: 0 1px 2px rgba(0,0,0,0.1); z-index: 1000; display: flex; justify-content: center; }
+.nav-container { display: flex; width: 100%; max-width: 1400px; align-items: center; justify-content: space-between; padding: 0 16px; }
+.main-layout { display: flex; justify-content: center; padding-top: 80px; gap: 32px; max-width: 1400px; margin: 0 auto; }
+.feed-content { width: 590px; display: flex; flex-direction: column; gap: 20px; }
+.sidebar-left, .sidebar-right { width: 280px; position: sticky; top: 80px; height: calc(100vh - 100px); overflow-y: auto; }
+.hidden { display: none !important; }
 
-.hamburger-btn span {
-  width: 24px;
-  height: 3px;
-  background: currentColor;
-  border-radius: 2px;
-  transition: all 0.3s ease;
-}
-
-.hamburger-btn.active span:nth-child(1) {
-  transform: rotate(45deg) translate(8px, 8px);
-}
-
-.hamburger-btn.active span:nth-child(2) {
-  opacity: 0;
-}
-
-.hamburger-btn.active span:nth-child(3) {
-  transform: rotate(-45deg) translate(7px, -7px);
-}
-
-/* LAYOUT */
-.main-layout {
-  display: flex;
-  justify-content: center;
-  padding-top: calc(var(--header-h) + 20px);
-  gap: 30px;
-  max-width: 1400px;
-  margin: 0 auto;
-}
-.sidebar-left,
-.sidebar-right {
-  width: 280px;
-  position: sticky;
-  top: 80px;
-  height: calc(100vh - 100px);
-  overflow-y: auto;
-}
-.feed-content {
-  width: 600px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  padding-bottom: 50px;
-}
-
-/* COMPONENTS */
-.profile-card-mini {
-  background: var(--bg-card);
-  border-radius: var(--radius);
-  overflow: hidden;
-  box-shadow: var(--shadow);
-  text-align: center;
-  padding-bottom: 15px;
-}
-.pcm-cover {
-  height: 60px;
-  background: linear-gradient(to right, #1877f2, #00c6ff);
-}
-.pcm-info {
-  margin-top: -30px;
-  padding: 0 15px;
-}
-.pcm-info img {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  border: 3px solid var(--bg-card);
-  object-fit: cover;
-}
-.pcm-info h3 {
-  font-size: 16px;
-  margin: 5px 0 2px;
-  color: var(--text-main);
-}
-.text-bio {
-  font-size: 13px;
-  color: var(--text-sub);
-  margin-bottom: 15px;
-  font-style: italic;
-}
-.pcm-details {
-  text-align: left;
-  margin-top: 10px;
-  border-top: 1px solid var(--hover-bg);
-  padding-top: 10px;
-}
-.pcm-row {
-  font-size: 13px;
-  color: var(--text-main);
-  margin-bottom: 8px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.menu-item {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  padding: 12px 15px;
-  border-radius: 10px;
-  cursor: pointer;
-  font-weight: 600;
-  font-size: 15px;
-  transition: 0.2s;
-  color: var(--text-main);
-}
-.menu-item:hover,
-.menu-item.active {
-  background: var(--hover-bg);
-}
-.menu-item i {
-  font-size: 22px;
-  width: 30px;
-}
-
-/* POST & STORY */
-.stories-wrapper {
-  display: flex;
-  gap: 10px;
-  height: 200px;
-  margin-bottom: 10px;
-  overflow-x: auto;
-}
-.story-card {
-  min-width: 110px;
-  height: 100%;
-  border-radius: 15px;
-  position: relative;
-  overflow: hidden;
-  cursor: pointer;
-  box-shadow: var(--shadow);
-  background: var(--bg-card);
-}
-.story-card:hover {
-  transform: scale(1.02);
-  filter: brightness(0.95);
-}
-.create-story-card {
-  display: flex;
-  flex-direction: column;
-}
-.story-img-top {
-  height: 75%;
-  width: 100%;
-}
-.story-img-top img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.story-footer {
-  height: 25%;
-  background: var(--bg-card);
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  position: relative;
-  padding-bottom: 10px;
-  font-weight: 600;
-  font-size: 13px;
-  color: var(--text-main);
-}
-.add-story-btn {
-  position: absolute;
-  top: -18px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 36px;
-  height: 36px;
-  background: var(--primary);
-  border: 4px solid var(--bg-card);
-  border-radius: 50%;
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.create-post-card {
-  background: var(--bg-card);
-  border-radius: var(--radius);
-  padding: 15px;
-  box-shadow: var(--shadow);
-}
-.cp-input-section {
-  display: flex;
-  gap: 10px;
-  padding-bottom: 15px;
-  border-bottom: 1px solid var(--hover-bg);
-}
-.cp-input-section img {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  object-fit: cover;
-}
-.input-fake {
-  flex: 1;
-  background: var(--bg-body);
-  border-radius: 20px;
-  display: flex;
-  align-items: center;
-  padding: 0 15px;
-  cursor: pointer;
-}
-.input-fake input {
-  width: 100%;
-  border: none;
-  background: transparent;
-  outline: none;
-  font-size: 16px;
-  color: var(--text-main);
-}
-.cp-actions {
-  display: flex;
-  justify-content: space-between;
-  padding-top: 15px;
-}
-.cp-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 600;
-  color: var(--text-sub);
-  border: none;
-  background: transparent;
-  transition: 0.2s;
-}
-.cp-btn:hover {
-  background: var(--hover-bg);
-}
-#post-btn {
-  background: var(--primary);
-  color: white;
-  border: none;
-  padding: 0 20px;
-  border-radius: 6px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
+/* --- POST CARD --- */
 .post-card {
   background: var(--bg-card);
-  border-radius: var(--radius);
+  border-radius: 8px;
   box-shadow: var(--shadow);
-  margin-bottom: 15px;
+  padding-bottom: 5px;
 }
-.post-header {
-  display: flex;
-  align-items: center;
-  padding: 15px;
-  gap: 10px;
-}
-.post-header img {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  object-fit: cover;
-}
-.post-info h3 {
-  font-size: 15px;
-  font-weight: 600;
-  margin: 0;
-  color: var(--text-main);
-}
-.post-info span {
-  font-size: 12px;
-  color: var(--text-sub);
-  display: block;
-}
-.post-content {
-  padding: 0 15px 15px;
-  font-size: 15px;
-  line-height: 1.5;
-  color: var(--text-main);
-}
-.post-image {
-  width: 100%;
-  max-height: 600px;
-  object-fit: cover;
-  display: block;
-}
+.post-header { padding: 12px 16px; display: flex; align-items: center; gap: 10px; }
+.post-header img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
+.post-info h3 { font-size: 15px; margin: 0; color: var(--text-main); }
+.post-info span { font-size: 13px; color: var(--text-sub); }
+.post-content { padding: 0 16px 16px; font-size: 15px; line-height: 1.5; }
+.post-image { width: 100%; display: block; height: auto; object-fit: cover; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+
+/* --- POST STATS (Số lượng like/comment) --- */
 .post-stats {
-  padding: 10px 15px;
+  padding: 10px 16px;
   display: flex;
   justify-content: space-between;
-  font-size: 13px;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
   color: var(--text-sub);
-  border-bottom: 1px solid var(--hover-bg);
+  font-size: 14px;
 }
-.post-actions {
+.reaction-icons-display {
   display: flex;
-  padding: 5px 15px;
-  border-top: 1px solid var(--hover-bg); /* Thêm viền trên cho phần actions */
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
 }
+.reaction-icons-display span {
+    display: flex;
+    align-items: center;
+}
+.stat-text:hover { text-decoration: underline; cursor: pointer; }
+
+/* --- POST ACTIONS (Nút Like, Comment) --- */
+.post-actions {
+  padding: 4px 16px;
+  display: flex;
+  justify-content: space-between;
+  position: relative; /* Quan trọng cho popup */
+}
+
+/* Nút Action chung */
 .action-btn {
   flex: 1;
   display: flex;
-  align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 10px;
-  border-radius: 5px;
+  align-items: center;
+  padding: 8px 0;
+  border-radius: 4px;
   cursor: pointer;
-  color: var(--text-sub);
   font-weight: 600;
-  border: none;
-  background: transparent;
+  color: var(--text-sub);
+  font-size: 14px;
   transition: 0.2s;
-  position: relative; /* Thêm position relative cho Reaction Popup */
+  background: transparent;
+  border: none;
+  gap: 8px;
+  position: relative; /* Để căn chỉnh popup */
 }
-.action-btn:hover {
-  background: var(--hover-bg);
+.action-btn:hover { background: var(--hover-bg); }
+.action-btn i { font-size: 18px; }
+
+/* --- REACTION POPUP (Thần thái Facebook) --- */
+/* Container bao quanh nút Like để xử lý hover */
+.reaction-wrapper {
+  flex: 1;
+  position: relative; /* Popup sẽ tuyệt đối theo cái này */
 }
 
-/* ============================================
-   REACTION POPUP - GIỐNG FACEBOOK
-   ============================================ */
-.reaction-popup {
+/* Bản thân cái Popup */
+.reaction-popup-box {
   position: absolute;
-  bottom: 100%;
-  left: 0; /* Canh trái với nút Like */
-  transform: translateY(-10px);
+  bottom: 45px; /* Hiện lên trên nút Like */
+  left: 10px;
   background: var(--bg-card);
   border-radius: 50px;
-  padding: 5px 10px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); /* Bóng đổ mạnh hơn */
-  display: none;
+  padding: 6px 6px;
+  display: flex;
+  gap: 8px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  border: 1px solid var(--border);
+  
+  /* Ẩn mặc định */
   opacity: 0;
+  visibility: hidden;
+  transform: translateY(10px) scale(0.8);
   transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   z-index: 100;
-  white-space: nowrap;
-  border: 1px solid var(--border);
 }
 
-.action-btn:hover .reaction-popup {
-  display: flex;
+/* Hiệu ứng khi hover vào wrapper (nút Like) */
+.reaction-wrapper:hover .reaction-popup-box {
   opacity: 1;
-  transform: translateY(0);
-  animation: bounceIn 0.4s ease;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+  transition-delay: 0.3s; /* Delay nhẹ để tránh hiện khi lướt qua nhanh */
 }
 
-@keyframes bounceIn {
-  0% {
-    opacity: 0;
-    transform: translateY(10px) scale(0.3);
-  }
-  50% {
-    transform: translateY(-5px) scale(1.05);
-  }
-  70% {
-    transform: translateY(0) scale(0.95);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-.reaction-popup button {
-  border: none;
-  background: transparent;
-  font-size: 28px; /* Tăng kích thước icon */
+/* Icon cảm xúc trong popup */
+.reaction-icon {
+  font-size: 28px;
   cursor: pointer;
-  transition: transform 0.2s ease;
-  padding: 0 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
+  transition: transform 0.2s;
+  user-select: none;
+  line-height: 1;
+  display: inline-block;
 }
 
-.reaction-popup button:hover {
-  transform: scale(1.3) translateY(-5px);
+.reaction-icon:hover {
+  transform: scale(1.5) translateY(-5px);
 }
 
-/* Tooltip cho reaction */
-.reaction-popup button::after {
-  content: attr(data-reaction);
-  position: absolute;
-  top: -30px; /* Hiển thị phía trên icon */
-  left: 50%;
-  transform: translateX(-50%) scale(0);
-  background: rgba(0, 0, 0, 0.8);
-  color: white;
-  padding: 4px 8px;
-  border-radius: 20px;
-  font-size: 11px;
-  white-space: nowrap;
-  opacity: 0;
-  transition: all 0.2s ease;
-  pointer-events: none;
-  font-weight: 600;
-}
+/* Màu sắc text nút Like khi đã active */
+.action-text.liked { color: var(--like-color); }
+.action-text.loved { color: var(--love-color); }
+.action-text.haha { color: var(--haha-color); }
+.action-text.wow { color: var(--wow-color); }
+.action-text.sad { color: var(--sad-color); }
+.action-text.angry { color: var(--angry-color); }
 
-.reaction-popup button:hover::after {
-  transform: translateX(-50%) scale(1);
-  opacity: 1;
+/* --- COMMENT MODAL --- */
+.modal-backdrop {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.7); z-index: 2000;
+    display: flex; justify-content: center; align-items: center;
 }
-
-/* ============================================
-   COMMENT SECTION - STYLE MỚI GIỐNG FACEBOOK
-   ============================================ */
 .comment-box {
-  background: var(--bg-card);
-  width: 600px; /* Rộng hơn một chút */
-  height: 80vh; /* Chiếm 80% chiều cao */
-  max-width: 95vw;
-  display: flex;
-  flex-direction: column;
-  padding: 0;
-  border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    width: 700px;
+    height: 85vh;
+    background: var(--bg-card);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 12px 28px rgba(0,0,0,0.3);
 }
-
 .modal-header {
-  padding: 15px 20px;
-  border-bottom: 1px solid var(--hover-bg);
-  display: flex;
-  justify-content: center; /* Tiêu đề ra giữa */
-  align-items: center;
-  position: relative;
+    border-bottom: 1px solid var(--border);
+    padding: 15px;
+    text-align: center;
+    position: relative;
 }
-
-.modal-header h2 {
-  font-size: 20px;
-  margin: 0;
-  color: var(--text-main);
-  font-weight: 700;
-}
-
-.modal-header i {
-  font-size: 20px;
-  cursor: pointer;
-  color: var(--text-sub);
-  padding: 8px;
-  border-radius: 50%;
-  background: var(--hover-bg); /* Nút đóng có nền tròn */
-  transition: 0.2s;
-  position: absolute;
-  right: 15px; /* Nút đóng ở bên phải */
-}
-
-.modal-header i:hover {
-  background: #d0d2d6; /* Màu đậm hơn khi hover */
-}
-
-.modal-body.comment-body {
-  padding: 15px;
-  overflow-y: auto;
-  flex: 1;
-  scroll-behavior: smooth;
-  background-color: var(--bg-body); /* Nền cho phần comment khác biệt chút */
-}
-
-/* Custom scrollbar cho comment */
-.modal-body.comment-body::-webkit-scrollbar {
-  width: 8px;
-}
-
-.modal-body.comment-body::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.modal-body.comment-body::-webkit-scrollbar-thumb {
-  background: #bcc0c4;
-  border-radius: 10px;
-}
-
-.modal-body.comment-body::-webkit-scrollbar-thumb:hover {
-  background: #8e9196;
-}
-
-/* Comment Item - Style mới */
-.comment-item {
-  display: flex;
-  margin-bottom: 10px; /* Giảm khoảng cách giữa các comment */
-  gap: 10px;
-  align-items: flex-start;
-  animation: slideIn 0.3s ease;
-}
-
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.comment-item img {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  object-fit: cover;
-  margin-top: 2px;
-  flex-shrink: 0;
-}
-
-.comment-content-wrapper {
-  flex: 1;
-  min-width: 0;
-}
-
-.comment-content-box {
-  background: var(--bg-card); /* Nền trắng cho bong bóng chat */
-  border-radius: 18px;
-  padding: 8px 12px;
-  max-width: fit-content;
-  position: relative;
-  word-wrap: break-word;
-  /* box-shadow: 0 1px 2px rgba(0,0,0,0.1);  Có thể thêm shadow nhẹ nếu thích */
-}
-/* Dark mode override for comment bubble */
-[data-theme="dark"] .comment-content-box {
-    background: #3a3b3c;
-}
-
-
-.comment-author-name {
-  font-weight: 600;
-  font-size: 13px;
-  display: block;
-  margin-bottom: 2px;
-  color: var(--text-main);
-  text-decoration: none;
-}
-.comment-author-name:hover {
-    text-decoration: underline;
+.close-btn-wrapper {
+    position: absolute; right: 15px; top: 12px;
+    width: 36px; height: 36px; border-radius: 50%;
+    background: var(--hover-bg);
+    display: flex; align-items: center; justify-content: center;
     cursor: pointer;
 }
-
-
-.comment-content-box p {
-  margin: 0;
-  font-size: 15px;
-  line-height: 1.3333;
-  color: var(--text-main);
+.modal-body.comment-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 15px;
 }
-
-.comment-footer {
-  display: flex;
-  gap: 15px;
-  margin-top: 2px;
-  margin-left: 12px;
-  align-items: center;
+/* Comment Row */
+.comment-item { display: flex; gap: 10px; margin-bottom: 10px; }
+.comment-item img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
+.comment-content {
+    background: var(--bg-body);
+    border-radius: 18px;
+    padding: 8px 12px;
+    max-width: 90%;
 }
+[data-theme="dark"] .comment-content { background: #3a3b3c; }
 
-.comment-footer span {
-  font-size: 12px;
-  color: var(--text-sub);
-}
+.comment-author { font-weight: 600; font-size: 13px; color: var(--text-main); display: block; margin-bottom: 2px;}
+.comment-text { font-size: 15px; margin: 0; line-height: 1.3; }
 
-.comment-footer button {
-  background: none;
-  border: none;
-  color: var(--text-sub); /* Màu chữ xám giống Facebook */
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  padding: 0;
-  transition: 0.2s;
-}
-
-.comment-footer button:hover {
-  text-decoration: underline;
-}
-
-.delete-comment-btn {
-  color: var(--text-sub);
-  font-size: 12px;
-  cursor: pointer;
-  padding: 0;
-  opacity: 0; /* Ẩn mặc định */
-  transition: all 0.2s;
-  border: none;
-  background: none;
-}
-.delete-comment-btn:hover {
-    color: #e41e3f;
-    text-decoration: underline;
-}
-
-.comment-item:hover .delete-comment-btn {
-  opacity: 1; /* Hiện khi hover vào comment */
-}
-
-/* Comment Input Section */
+/* Input Footer */
 .comment-input-section {
-  display: flex;
-  align-items: flex-end; /* Căn dưới để input co giãn lên trên */
-  padding: 12px 16px;
-  border-top: 1px solid var(--hover-bg);
-  gap: 8px;
-  background: var(--bg-card);
-  border-bottom-left-radius: 12px;
-  border-bottom-right-radius: 12px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    display: flex; gap: 10px; align-items: flex-end;
 }
-
-.comment-input-section img {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  object-fit: cover;
-  flex-shrink: 0;
-  margin-bottom: 4px;
-}
-
+.comment-input-section img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
 .comment-input-wrapper {
     flex: 1;
     background: var(--bg-body);
@@ -824,408 +229,13 @@ body {
     display: flex;
     align-items: center;
 }
-/* Dark mode override for input wrapper */
-[data-theme="dark"] .comment-input-wrapper {
-    background: #3a3b3c;
+[data-theme="dark"] .comment-input-wrapper { background: #3a3b3c; }
+.comment-input-wrapper input {
+    width: 100%; border: none; background: transparent; outline: none;
+    color: var(--text-main); font-size: 15px;
 }
-
-
-.comment-input-section input {
-  width: 100%;
-  border: none;
-  background: transparent;
-  outline: none;
-  font-size: 15px;
-  color: var(--text-main);
-  /* resize: none;  nếu dùng textarea */
+.comment-input-wrapper button {
+    background: none; border: none; color: var(--primary);
+    font-size: 16px; cursor: pointer; padding: 0 0 0 8px;
 }
-
-.comment-input-section button {
-  padding: 0;
-  font-size: 16px;
-  color: var(--primary); /* Icon gửi màu xanh */
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  transition: 0.2s;
-  margin-bottom: 8px; /* Căn chỉnh với input */
-}
-
-.comment-input-section button:hover:not(:disabled) {
-  /* color: var(--primary-hover); */
-  transform: scale(1.1);
-}
-
-.comment-input-section button:disabled {
-  color: var(--text-sub);
-  cursor: default;
-  opacity: 0.5;
-}
-
-
-/* Empty state */
-.comments-list:empty::before {
-  content: "Chưa có bình luận nào. Hãy là người đầu tiên bình luận! 💬";
-  display: block;
-  text-align: center;
-  padding: 40px 20px;
-  color: var(--text-sub);
-  font-size: 14px;
-}
-
-.contact-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: 0.2s;
-}
-.contact-item:hover {
-  background: var(--hover-bg);
-}
-.contact-img {
-  position: relative;
-}
-.contact-img img {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  object-fit: cover;
-}
-.online-dot {
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 10px;
-  height: 10px;
-  background: #45bd62;
-  border-radius: 50%;
-  border: 2px solid var(--bg-card);
-}
-.sidebar-title {
-  font-weight: 600;
-  color: var(--text-sub);
-  margin: 20px 0 10px 10px;
-  font-size: 15px;
-}
-
-/* MODALS */
-.modal-backdrop {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.7);
-  z-index: 2000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.profile-edit-box {
-  background: var(--bg-card);
-  width: 500px;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  padding: 0;
-  border-radius: 12px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-}
-
-.modal-body {
-  padding: 20px;
-  overflow-y: auto;
-}
-.profile-section {
-  margin-bottom: 20px;
-}
-.profile-section h3 {
-  font-size: 16px;
-  margin-bottom: 15px;
-  color: var(--text-main);
-}
-.center {
-  text-align: center;
-}
-.profile-avatar-edit {
-  position: relative;
-  width: 100px;
-  height: 100px;
-  margin: 0 auto 20px;
-}
-.profile-avatar-edit img {
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 3px solid var(--bg-body);
-}
-.edit-icon {
-  position: absolute;
-  bottom: 5px;
-  right: 5px;
-  background: var(--hover-bg);
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-  color: var(--text-main);
-}
-.form-group {
-  margin-bottom: 15px;
-}
-.form-group label {
-  display: block;
-  font-weight: 500;
-  font-size: 14px;
-  margin-bottom: 5px;
-  color: var(--text-main);
-}
-.form-group input,
-.form-group textarea {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font-family: inherit;
-  font-size: 14px;
-  resize: none;
-  background: var(--bg-body);
-  color: var(--text-main);
-}
-.form-group input:focus {
-  border-color: var(--primary);
-  outline: none;
-}
-.form-group-icon {
-  position: relative;
-  margin-bottom: 12px;
-}
-.form-group-icon i {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-sub);
-  font-size: 16px;
-}
-.form-group-icon input {
-  width: 100%;
-  padding: 10px 10px 10px 40px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg-body);
-  color: var(--text-main);
-}
-.modal-footer {
-  padding: 15px 20px;
-  border-top: 1px solid var(--hover-bg);
-  display: flex;
-  gap: 10px;
-}
-.btn-secondary {
-  background: var(--hover-bg);
-  border: none;
-  padding: 10px 20px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: 600;
-  color: var(--text-main);
-}
-.btn-primary {
-  background: var(--primary);
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: 600;
-}
-.btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.hidden {
-  display: none !important;
-}
-
-/* OVERLAY */
-.home-overlay {
-  display: none;
-  position: fixed;
-  top: var(--header-h);
-  left: 0;
-  width: 100%;
-  height: calc(100vh - var(--header-h));
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 998;
-  z-index: 500;
-}
-
-.home-overlay.active {
-  display: block;
-}
-
-/* RESPONSIVE */
-@media (max-width: 1024px) {
-  .sidebar-right {
-    width: 250px;
-  }
-  .feed-content {
-    width: 550px;
-  }
-}
-
-@media (max-width: 768px) {
-  .nav-left {
-    width: auto;
-  }
-
-  .search-bar {
-    display: none;
-  }
-
-  .nav-center {
-    flex: 1;
-  }
-
-  .nav-right {
-    width: auto;
-  }
-
-  .user-info-nav {
-    display: none;
-  }
-
-  .hamburger-btn {
-    display: flex;
-  }
-
-  .main-layout {
-    position: relative;
-    flex-direction: column;
-    padding-top: calc(var(--header-h) + 10px);
-    gap: 0;
-  }
-
-  .sidebar-left {
-    position: fixed;
-    left: -100%;
-    top: var(--header-h);
-    width: 280px;
-    height: calc(100vh - var(--header-h));
-    z-index: 999;
-    overflow-y: auto;
-    transition: left 0.3s ease;
-    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
-  }
-
-  .sidebar-left.active {
-    left: 0;
-  }
-
-  .sidebar-right {
-    display: none;
-  }
-
-  .feed-content {
-    width: 100%;
-    padding-top: 0;
-  }
-
-  .profile-edit-box {
-    width: 90vw;
-    max-width: 500px;
-  }
-  
-  /* Cập nhật responsive cho comment box */
-  .comment-box {
-    width: 100%;
-    height: 100%;
-    max-width: 100%;
-    border-radius: 0;
-  }
-  
-  .stories-wrapper {
-    height: 150px;
-  }
-
-  .message {
-    max-width: 85%;
-  }
-}
-
-@media (max-width: 480px) {
-  .logo {
-    font-size: 20px;
-  }
-
-  .nav-link {
-    width: 60px;
-    font-size: 20px;
-  }
-
-  .nav-btn {
-    width: 36px;
-    height: 36px;
-  }
-
-  .sidebar-left {
-    width: 100%;
-  }
-
-  .profile-card-mini {
-    margin: 10px;
-  }
-
-  .create-post-card {
-    margin: 10px;
-  }
-
-  .stories-wrapper {
-    height: 120px;
-    margin: 10px;
-  }
-
-  .post-card {
-    margin: 10px;
-  }
-
-  .cp-input-section img,
-  .story-my-avatar {
-    width: 36px;
-    height: 36px;
-  }
-
-  .feed-content {
-    gap: 10px;
-  }
-
-  .post-header img {
-    width: 36px;
-    height: 36px;
-  }
-
-  .post-content {
-    font-size: 14px;
-  }
-
-  .profile-edit-box {
-    width: 95vw;
-  }
-  
-  .message {
-    max-width: 95%;
-  }
-
-  .input-fake input {
-    font-size: 14px;
-  }
-}
+.comment-input-wrapper button:disabled { color: var(--text-sub); }
