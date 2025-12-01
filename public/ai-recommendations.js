@@ -1,11 +1,20 @@
 // ===== AI FRIEND RECOMMENDATIONS CLIENT =====
-// File này cần được import trong ứng dụng React/Vue/HTML của bạn
+// File: ai-recommendations.js
+// Đặt trong thư mục public/ cùng cấp với ai-recommendations.html
 
 const API_BASE = '/api';
-const token = localStorage.getItem('token');
+const AI_BOT_ID = 1;
 
 // ===== 1. GỌI API GỢI Ý BẠN BÈ TỪ AI =====
 async function getAIRecommendations(criteria = '') {
+  const token = localStorage.getItem('token');
+  
+  if (!token) {
+    alert('⚠️ Bạn cần đăng nhập để sử dụng tính năng này!');
+    window.location.href = '/login.html';
+    return { recommendations: [], reasons: [] };
+  }
+
   try {
     const response = await fetch(`${API_BASE}/ai/recommend-friends`, {
       method: 'POST',
@@ -16,11 +25,22 @@ async function getAIRecommendations(criteria = '') {
       body: JSON.stringify({ criteria })
     });
     
-    if (!response.ok) throw new Error('Failed to fetch recommendations');
+    if (response.status === 401 || response.status === 403) {
+      alert('⚠️ Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại!');
+      window.location.href = '/login.html';
+      return { recommendations: [], reasons: [] };
+    }
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch recommendations');
+    }
+    
     const data = await response.json();
+    console.log('✅ Nhận được gợi ý từ AI:', data);
     return data;
   } catch (error) {
     console.error('❌ Lỗi gợi ý:', error);
+    alert('❌ Không thể lấy gợi ý từ AI. Vui lòng thử lại!');
     return { recommendations: [], reasons: [] };
   }
 }
@@ -30,53 +50,98 @@ function displayRecommendations(recommendations, reasons) {
   const container = document.getElementById('ai-recommendations');
   
   if (!container) {
-    console.warn('Không tìm thấy container #ai-recommendations');
+    console.warn('⚠️ Không tìm thấy container #ai-recommendations');
     return;
   }
 
-  if (recommendations.length === 0) {
-    container.innerHTML = '<p class="text-center text-gray-500">Không có gợi ý nào lúc này.</p>';
-    return;
-  }
+  // Xóa nội dung cũ
+  container.innerHTML = '';
 
-  container.innerHTML = '<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">';
-  
-  recommendations.forEach((user, index) => {
-    const reason = reasons[index]?.reason || 'Bạn có thể là bạn tốt';
-    const reasonText = typeof reason === 'string' ? reason : JSON.stringify(reason);
-    
-    const userCard = `
-      <div class="bg-white rounded-lg shadow-md p-4 hover:shadow-lg transition-shadow">
-        <img src="${user.avatar || 'https://ui-avatars.com/api/?name=' + user.username}" 
-             alt="${user.nickname}" 
-             class="w-full h-40 object-cover rounded-lg mb-3">
-        <h3 class="font-bold text-lg">${user.nickname || user.username}</h3>
-        <p class="text-gray-600 text-sm">@${user.username}</p>
-        <p class="text-gray-700 text-sm mt-2">${reasonText}</p>
-        <button class="mt-3 w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition"
-                onclick="addFriend(${user.id})">
-          ➕ Kết bạn
-        </button>
+  if (!recommendations || recommendations.length === 0) {
+    container.innerHTML = `
+      <div class="col-span-full text-center py-12 text-gray-500">
+        <i class="fas fa-user-friends text-4xl mb-4"></i>
+        <p class="text-lg">Không tìm thấy gợi ý phù hợp</p>
+        <p class="text-sm mt-2">Hãy thử với tiêu chí khác hoặc để trống để nhận gợi ý chung</p>
       </div>
     `;
+    return;
+  }
+
+  recommendations.forEach((user, index) => {
+    const reason = reasons[index]?.reason || 'Có thể phù hợp với bạn';
+    const reasonText = typeof reason === 'string' ? reason : JSON.stringify(reason);
     
-    container.innerHTML += userCard;
+    const userCard = document.createElement('div');
+    userCard.className = 'bg-white rounded-lg shadow-md p-4 hover:shadow-lg transition-shadow card-hover';
+    
+    userCard.innerHTML = `
+      <img src="${user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}&background=random`}" 
+           alt="${user.nickname || user.username}" 
+           class="w-full h-40 object-cover rounded-lg mb-3"
+           onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}&background=random'">
+      <h3 class="font-bold text-lg text-gray-800">${user.nickname || user.username}</h3>
+      <p class="text-gray-600 text-sm">@${user.username}</p>
+      <p class="text-gray-700 text-sm mt-2 mb-3">
+        <i class="fas fa-lightbulb text-yellow-500 mr-1"></i>
+        ${reasonText}
+      </p>
+      <button class="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition font-semibold"
+              onclick="addFriend(${user.id})">
+        <i class="fas fa-user-plus mr-2"></i>Kết bạn
+      </button>
+    `;
+    
+    container.appendChild(userCard);
   });
-  
-  container.innerHTML += '</div>';
+
+  console.log(`✅ Đã hiển thị ${recommendations.length} gợi ý`);
 }
 
 // ===== 3. GỌI GỢI Ý THEO TIÊU CHÍ =====
 async function searchFriendsWithAI() {
   const criteria = document.getElementById('ai-search-criteria')?.value || '';
+  const button = document.getElementById('btn-get-recommendations');
   
-  console.log('🤖 Đang tìm kiếm với tiêu chí:', criteria);
+  // Show loading state
+  if (button) {
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Đang tìm kiếm...';
+  }
+
+  // Show loading in results
+  const container = document.getElementById('ai-recommendations');
+  if (container) {
+    container.innerHTML = `
+      <div class="col-span-full text-center py-12">
+        <i class="fas fa-spinner fa-spin text-4xl text-blue-500 mb-4"></i>
+        <p class="text-gray-600">AI đang phân tích và tìm kiếm người phù hợp...</p>
+      </div>
+    `;
+  }
+
+  console.log('🤖 Đang tìm kiếm với tiêu chí:', criteria || '(Gợi ý chung)');
+  
   const data = await getAIRecommendations(criteria);
   displayRecommendations(data.recommendations, data.reasons);
+
+  // Reset button
+  if (button) {
+    button.disabled = false;
+    button.innerHTML = '🚀 Tìm Gợi Ý';
+  }
 }
 
 // ===== 4. THÊM BẠN =====
 async function addFriend(friendId) {
+  const token = localStorage.getItem('token');
+  
+  if (!token) {
+    alert('⚠️ Bạn cần đăng nhập để kết bạn!');
+    window.location.href = '/login.html';
+    return;
+  }
+
   try {
     const response = await fetch(`${API_BASE}/friends/request`, {
       method: 'POST',
@@ -89,17 +154,18 @@ async function addFriend(friendId) {
     
     if (response.ok) {
       alert('✅ Đã gửi lời mời kết bạn!');
-      location.reload();
+    } else if (response.status === 500) {
+      alert('⚠️ Bạn đã gửi lời mời cho người này rồi!');
     } else {
       alert('❌ Không thể gửi lời mời kết bạn');
     }
   } catch (error) {
-    console.error('Lỗi:', error);
-    alert('❌ Có lỗi xảy ra');
+    console.error('❌ Lỗi:', error);
+    alert('❌ Có lỗi xảy ra khi gửi lời mời kết bạn');
   }
 }
 
-// ===== 5. TƯƠNG TÁC VỚI AI CHATBOT TIẾNG VIỆT =====
+// ===== 5. TƯƠNG TÁC VỚI AI CHATBOT =====
 class AIChat {
   constructor(socketIO) {
     this.socket = socketIO;
@@ -113,20 +179,29 @@ class AIChat {
     
     if (this.inputField) {
       this.inputField.onkeypress = (e) => {
-        if (e.key === 'Enter') this.sendMessage();
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          this.sendMessage();
+        }
       };
     }
     
     this.setupSocketListeners();
+    console.log('✅ AI Chat initialized');
   }
 
   setupSocketListeners() {
-    this.socket.on('newMessage', (msg) => this.displayMessage(msg));
+    this.socket.on('newMessage', (msg) => {
+      console.log('📨 Received message:', msg);
+      this.displayMessage(msg);
+    });
   }
 
   sendMessage() {
     const content = this.inputField?.value.trim();
     if (!content) return;
+
+    console.log('📤 Sending message to AI:', content);
 
     // Hiển thị tin nhắn người dùng
     this.displayMessage({
@@ -136,9 +211,9 @@ class AIChat {
       senderName: 'Bạn'
     });
 
-    // Gửi đến AI bot (ID = 1)
+    // Gửi đến AI bot
     this.socket.emit('privateMessage', {
-      recipientId: 1,
+      recipientId: AI_BOT_ID,
       content: content,
       ttl: null
     });
@@ -149,102 +224,169 @@ class AIChat {
   displayMessage(msg) {
     if (!this.chatContainer) return;
 
-    const isAI = msg.senderId === 1 || msg.senderId === 'AI';
-    const isUser = msg.senderId !== 1 && msg.senderId !== 'AI';
+    const isAI = msg.senderId === AI_BOT_ID || msg.senderId === 1 || msg.senderId === 'AI';
+    const isUser = !isAI;
 
     const messageDiv = document.createElement('div');
-    messageDiv.className = `mb-4 ${isUser ? 'text-right' : 'text-left'}`;
+    messageDiv.className = `flex ${isUser ? 'justify-end' : 'justify-start'}`;
 
     const msgContent = document.createElement('div');
-    msgContent.className = `inline-block max-w-xs px-4 py-2 rounded-lg ${
-      isUser ? 'bg-blue-500 text-white' : 'bg-gray-300 text-black'
+    msgContent.className = `px-4 py-2 rounded-lg max-w-xs ${
+      isUser 
+        ? 'bg-blue-500 text-white' 
+        : 'bg-gray-300 text-black'
     }`;
+    
     msgContent.textContent = msg.content;
 
     messageDiv.appendChild(msgContent);
     this.chatContainer.appendChild(messageDiv);
+    
+    // Auto scroll to bottom
     this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
   }
 }
 
-// ===== 6. KHỞI TẠO KHI TRANG TẢI =====
+// ===== 6. HỎI AI VỀ GỢI Ý =====
+function askAIForRecommendation() {
+  const question = `Gợi ý cho tôi những người bạn mới phù hợp với tôi nhất`;
+  
+  if (window.aiChat && window.aiChat.inputField) {
+    window.aiChat.inputField.value = question;
+    window.aiChat.sendMessage();
+  } else {
+    console.warn('⚠️ AI Chat chưa được khởi tạo');
+    alert('⚠️ Chức năng chat chưa sẵn sàng. Vui lòng thử lại sau!');
+  }
+}
+
+// ===== 7. HỎI CÂU HỎI CHUNG =====
+function askGeneralQuestion() {
+  if (window.aiChat && window.aiChat.inputField) {
+    window.aiChat.inputField.focus();
+    alert('💬 Bạn có thể hỏi AI bất cứ điều gì! Ví dụ: "Làm sao để kết bạn nhiều hơn?"');
+  } else {
+    console.warn('⚠️ AI Chat chưa được khởi tạo');
+  }
+}
+
+// ===== 8. TÌM KIẾM NÂNG CAO =====
+async function advancedFriendSearch() {
+  const location = document.getElementById('location-filter')?.value || '';
+  const work = document.getElementById('work-filter')?.value || '';
+  const interests = document.getElementById('interests-filter')?.value || '';
+
+  const criteria = `Tìm bạn ở ${location || 'mọi nơi'}, công việc ${work || 'bất kỳ'}, sở thích ${interests || 'tương đồng'}`;
+
+  console.log('🔍 Tìm kiếm nâng cao:', criteria);
+
+  // Show loading in search results
+  const searchResults = document.getElementById('search-results');
+  if (searchResults) {
+    searchResults.innerHTML = `
+      <div class="col-span-full text-center py-12">
+        <i class="fas fa-spinner fa-spin text-4xl text-green-500 mb-4"></i>
+        <p class="text-gray-600">Đang tìm kiếm theo tiêu chí của bạn...</p>
+      </div>
+    `;
+  }
+
+  const data = await getAIRecommendations(criteria);
+  
+  if (searchResults) {
+    searchResults.innerHTML = '';
+    
+    if (!data.recommendations || data.recommendations.length === 0) {
+      searchResults.innerHTML = `
+        <div class="col-span-full text-center py-8 text-gray-500">
+          <i class="fas fa-search text-4xl mb-4"></i>
+          <p class="text-lg">Không tìm thấy kết quả phù hợp</p>
+          <p class="text-sm mt-2">Hãy thử điều chỉnh tiêu chí tìm kiếm</p>
+        </div>
+      `;
+      return;
+    }
+
+    data.recommendations.forEach((user, index) => {
+      const reason = data.reasons[index]?.reason || 'Phù hợp với tiêu chí tìm kiếm';
+      
+      const userCard = document.createElement('div');
+      userCard.className = 'bg-white rounded-lg shadow-md p-4 hover:shadow-lg transition-shadow card-hover';
+      
+      userCard.innerHTML = `
+        <img src="${user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}&background=random`}" 
+             alt="${user.nickname || user.username}" 
+             class="w-full h-40 object-cover rounded-lg mb-3"
+             onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}&background=random'">
+        <h3 class="font-bold text-lg text-gray-800">${user.nickname || user.username}</h3>
+        <p class="text-gray-600 text-sm">@${user.username}</p>
+        <p class="text-gray-700 text-sm mt-2 mb-3">
+          <i class="fas fa-check-circle text-green-500 mr-1"></i>
+          ${reason}
+        </p>
+        <button class="w-full bg-green-500 text-white py-2 rounded-lg hover:bg-green-600 transition font-semibold"
+                onclick="addFriend(${user.id})">
+          <i class="fas fa-user-plus mr-2"></i>Kết bạn
+        </button>
+      `;
+      
+      searchResults.appendChild(userCard);
+    });
+
+    console.log(`✅ Đã hiển thị ${data.recommendations.length} kết quả tìm kiếm`);
+  }
+}
+
+// ===== 9. KHỞI TẠO KHI TRANG TẢI =====
 document.addEventListener('DOMContentLoaded', () => {
-  // Tự động tải gợi ý khi trang load
+  console.log('🚀 Initializing AI Recommendations...');
+
+  // Kiểm tra token
+  const token = localStorage.getItem('token');
+  if (!token) {
+    console.warn('⚠️ No token found');
+    // Không redirect ngay, cho phép người dùng xem UI
+  }
+
+  // Gắn sự kiện cho nút tìm kiếm
   const recommendBtn = document.getElementById('btn-get-recommendations');
   if (recommendBtn) {
     recommendBtn.onclick = searchFriendsWithAI;
   }
 
+  // Cho phép Enter trong ô tìm kiếm
+  const searchInput = document.getElementById('ai-search-criteria');
+  if (searchInput) {
+    searchInput.onkeypress = (e) => {
+      if (e.key === 'Enter') {
+        searchFriendsWithAI();
+      }
+    };
+  }
+
   // Khởi tạo AI Chat nếu có Socket.IO
-  if (typeof io !== 'undefined') {
-    const token = localStorage.getItem('token');
-    const socket = io({
-      auth: { token: token }
-    });
-    
-    window.aiChat = new AIChat(socket);
+  if (typeof io !== 'undefined' && token) {
+    try {
+      const socket = io({
+        auth: { token: token }
+      });
+      
+      socket.on('connect', () => {
+        console.log('✅ Socket connected');
+        window.aiChat = new AIChat(socket);
+      });
+
+      socket.on('connect_error', (error) => {
+        console.error('❌ Socket connection error:', error);
+      });
+    } catch (error) {
+      console.error('❌ Error initializing Socket.IO:', error);
+    }
+  } else if (!token) {
+    console.warn('⚠️ No token - Socket.IO not initialized');
+  } else {
+    console.warn('⚠️ Socket.IO not loaded');
   }
+
+  console.log('✅ AI Recommendations initialized');
 });
-
-// ===== 7. HỎI AI VỀ GỢI Ý (SỬ DỤNG SOCKET) =====
-function askAIForRecommendation() {
-  const location = document.getElementById('location-filter')?.value || '';
-  const interest = document.getElementById('interest-filter')?.value || '';
-  
-  const question = `Gợi ý cho tôi những người bạn mới từ ${location || 'bất kỳ nơi đâu'} 
-                   có cùng sở thích ${interest || 'như tôi'}`;
-  
-  if (window.aiChat) {
-    window.aiChat.inputField.value = question;
-    window.aiChat.sendMessage();
-  }
-}
-
-// ===== 8. TÌM KIẾM VỚI ĐỘ CHÍNH XÁC CAO =====
-async function advancedFriendSearch() {
-  const searchParams = {
-    location: document.getElementById('location-filter')?.value || '',
-    work: document.getElementById('work-filter')?.value || '',
-    interests: document.getElementById('interests-filter')?.value || '',
-    language: 'tiếng Việt'
-  };
-
-  const criteria = `Tìm bạn ở ${searchParams.location || 'mọi nơi'}, 
-                   công việc ${searchParams.work || 'bất kỳ'}, 
-                   sở thích ${searchParams.interests || 'tương đồng'}`;
-
-  console.log('🔍 Tìm kiếm nâng cao:', searchParams);
-  const data = await getAIRecommendations(criteria);
-  displayRecommendations(data.recommendations, data.reasons);
-}
-
-// ===== 9. PHÂN TÍCH HÀNH VI NGƯỜI DÙNG =====
-async function logUserInteraction(userId, type) {
-  try {
-    await fetch(`${API_BASE}/user/log-interaction`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        interactedUserId: userId,
-        interactionType: type
-      })
-    });
-  } catch (error) {
-    console.error('Lỗi ghi log:', error);
-  }
-}
-
-// ===== 10. EXPORT CÁC HÀM =====
-export {
-  getAIRecommendations,
-  displayRecommendations,
-  searchFriendsWithAI,
-  addFriend,
-  AIChat,
-  askAIForRecommendation,
-  advancedFriendSearch,
-  logUserInteraction
-};
