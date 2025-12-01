@@ -498,6 +498,7 @@ body {
 .post-actions {
   display: flex;
   padding: 5px 15px;
+  border-top: 1px solid var(--hover-bg); /* Thêm viền trên cho phần actions */
 }
 .action-btn {
   flex: 1;
@@ -518,16 +519,358 @@ body {
 .action-btn:hover {
   background: var(--hover-bg);
 }
-.reaction-btn {
-  background: transparent;
+
+/* ============================================
+   REACTION POPUP - GIỐNG FACEBOOK
+   ============================================ */
+.reaction-popup {
+  position: absolute;
+  bottom: 100%;
+  left: 0; /* Canh trái với nút Like */
+  transform: translateY(-10px);
+  background: var(--bg-card);
+  border-radius: 50px;
+  padding: 5px 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); /* Bóng đổ mạnh hơn */
+  display: none;
+  opacity: 0;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  z-index: 100;
+  white-space: nowrap;
+  border: 1px solid var(--border);
+}
+
+.action-btn:hover .reaction-popup {
+  display: flex;
+  opacity: 1;
+  transform: translateY(0);
+  animation: bounceIn 0.4s ease;
+}
+
+@keyframes bounceIn {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.3);
+  }
+  50% {
+    transform: translateY(-5px) scale(1.05);
+  }
+  70% {
+    transform: translateY(0) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.reaction-popup button {
   border: none;
+  background: transparent;
+  font-size: 28px; /* Tăng kích thước icon */
+  cursor: pointer;
+  transition: transform 0.2s ease;
+  padding: 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.reaction-popup button:hover {
+  transform: scale(1.3) translateY(-5px);
+}
+
+/* Tooltip cho reaction */
+.reaction-popup button::after {
+  content: attr(data-reaction);
+  position: absolute;
+  top: -30px; /* Hiển thị phía trên icon */
+  left: 50%;
+  transform: translateX(-50%) scale(0);
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  white-space: nowrap;
+  opacity: 0;
+  transition: all 0.2s ease;
+  pointer-events: none;
+  font-weight: 600;
+}
+
+.reaction-popup button:hover::after {
+  transform: translateX(-50%) scale(1);
+  opacity: 1;
+}
+
+/* ============================================
+   COMMENT SECTION - STYLE MỚI GIỐNG FACEBOOK
+   ============================================ */
+.comment-box {
+  background: var(--bg-card);
+  width: 600px; /* Rộng hơn một chút */
+  height: 80vh; /* Chiếm 80% chiều cao */
+  max-width: 95vw;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.modal-header {
+  padding: 15px 20px;
+  border-bottom: 1px solid var(--hover-bg);
+  display: flex;
+  justify-content: center; /* Tiêu đề ra giữa */
+  align-items: center;
+  position: relative;
+}
+
+.modal-header h2 {
+  font-size: 20px;
+  margin: 0;
+  color: var(--text-main);
+  font-weight: 700;
+}
+
+.modal-header i {
   font-size: 20px;
   cursor: pointer;
-  padding: 5px 10px;
+  color: var(--text-sub);
+  padding: 8px;
+  border-radius: 50%;
+  background: var(--hover-bg); /* Nút đóng có nền tròn */
+  transition: 0.2s;
+  position: absolute;
+  right: 15px; /* Nút đóng ở bên phải */
+}
+
+.modal-header i:hover {
+  background: #d0d2d6; /* Màu đậm hơn khi hover */
+}
+
+.modal-body.comment-body {
+  padding: 15px;
+  overflow-y: auto;
+  flex: 1;
+  scroll-behavior: smooth;
+  background-color: var(--bg-body); /* Nền cho phần comment khác biệt chút */
+}
+
+/* Custom scrollbar cho comment */
+.modal-body.comment-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.modal-body.comment-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.modal-body.comment-body::-webkit-scrollbar-thumb {
+  background: #bcc0c4;
+  border-radius: 10px;
+}
+
+.modal-body.comment-body::-webkit-scrollbar-thumb:hover {
+  background: #8e9196;
+}
+
+/* Comment Item - Style mới */
+.comment-item {
+  display: flex;
+  margin-bottom: 10px; /* Giảm khoảng cách giữa các comment */
+  gap: 10px;
+  align-items: flex-start;
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.comment-item img {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.comment-content-wrapper {
+  flex: 1;
+  min-width: 0;
+}
+
+.comment-content-box {
+  background: var(--bg-card); /* Nền trắng cho bong bóng chat */
+  border-radius: 18px;
+  padding: 8px 12px;
+  max-width: fit-content;
+  position: relative;
+  word-wrap: break-word;
+  /* box-shadow: 0 1px 2px rgba(0,0,0,0.1);  Có thể thêm shadow nhẹ nếu thích */
+}
+/* Dark mode override for comment bubble */
+[data-theme="dark"] .comment-content-box {
+    background: #3a3b3c;
+}
+
+
+.comment-author-name {
+  font-weight: 600;
+  font-size: 13px;
+  display: block;
+  margin-bottom: 2px;
+  color: var(--text-main);
+  text-decoration: none;
+}
+.comment-author-name:hover {
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+
+.comment-content-box p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.3333;
+  color: var(--text-main);
+}
+
+.comment-footer {
+  display: flex;
+  gap: 15px;
+  margin-top: 2px;
+  margin-left: 12px;
+  align-items: center;
+}
+
+.comment-footer span {
+  font-size: 12px;
+  color: var(--text-sub);
+}
+
+.comment-footer button {
+  background: none;
+  border: none;
+  color: var(--text-sub); /* Màu chữ xám giống Facebook */
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
   transition: 0.2s;
 }
-.reaction-btn:hover {
-  transform: scale(1.3);
+
+.comment-footer button:hover {
+  text-decoration: underline;
+}
+
+.delete-comment-btn {
+  color: var(--text-sub);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+  opacity: 0; /* Ẩn mặc định */
+  transition: all 0.2s;
+  border: none;
+  background: none;
+}
+.delete-comment-btn:hover {
+    color: #e41e3f;
+    text-decoration: underline;
+}
+
+.comment-item:hover .delete-comment-btn {
+  opacity: 1; /* Hiện khi hover vào comment */
+}
+
+/* Comment Input Section */
+.comment-input-section {
+  display: flex;
+  align-items: flex-end; /* Căn dưới để input co giãn lên trên */
+  padding: 12px 16px;
+  border-top: 1px solid var(--hover-bg);
+  gap: 8px;
+  background: var(--bg-card);
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+
+.comment-input-section img {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  margin-bottom: 4px;
+}
+
+.comment-input-wrapper {
+    flex: 1;
+    background: var(--bg-body);
+    border-radius: 20px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+}
+/* Dark mode override for input wrapper */
+[data-theme="dark"] .comment-input-wrapper {
+    background: #3a3b3c;
+}
+
+
+.comment-input-section input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 15px;
+  color: var(--text-main);
+  /* resize: none;  nếu dùng textarea */
+}
+
+.comment-input-section button {
+  padding: 0;
+  font-size: 16px;
+  color: var(--primary); /* Icon gửi màu xanh */
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: 0.2s;
+  margin-bottom: 8px; /* Căn chỉnh với input */
+}
+
+.comment-input-section button:hover:not(:disabled) {
+  /* color: var(--primary-hover); */
+  transform: scale(1.1);
+}
+
+.comment-input-section button:disabled {
+  color: var(--text-sub);
+  cursor: default;
+  opacity: 0.5;
+}
+
+
+/* Empty state */
+.comments-list:empty::before {
+  content: "Chưa có bình luận nào. Hãy là người đầu tiên bình luận! 💬";
+  display: block;
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-sub);
+  font-size: 14px;
 }
 
 .contact-item {
@@ -591,139 +934,7 @@ body {
   border-radius: 12px;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
 }
-/* Comment Modal */
-.comment-box {
-  background: var(--bg-card);
-  width: 500px;
-  height: 90vh; /* Chiếm gần hết chiều cao màn hình */
-  max-width: 90vw;
-  display: flex;
-  flex-direction: column;
-  padding: 0;
-  border-radius: 12px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-}
-.modal-header {
-  padding: 15px 20px;
-  border-bottom: 1px solid var(--hover-bg);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.modal-header h2 {
-  font-size: 18px;
-  margin: 0;
-  color: var(--text-main);
-}
-.modal-header i {
-  font-size: 20px;
-  cursor: pointer;
-  color: var(--text-sub);
-}
-.modal-body.comment-body {
-  padding: 15px;
-  overflow-y: auto;
-  flex: 1; /* Cho phép comment body chiếm hết không gian còn lại */
-}
-.comment-input-section {
-    display: flex;
-    align-items: center;
-    padding: 10px 15px;
-    border-top: 1px solid var(--hover-bg);
-    gap: 10px;
-}
-.comment-input-section img {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    object-fit: cover;
-}
-.comment-input-section input {
-    flex: 1;
-    padding: 10px 15px;
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    font-size: 14px;
-    background: var(--bg-body);
-    color: var(--text-main);
-}
-.comment-input-section input:focus {
-    border-color: var(--primary);
-    outline: none;
-}
-.comment-input-section button {
-    padding: 8px 15px;
-    font-size: 14px;
-}
 
-/* Comment Item Style (New) */
-.comment-item {
-    display: flex;
-    margin-bottom: 15px;
-    gap: 8px;
-    align-items: flex-start;
-}
-.comment-item img {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    object-fit: cover;
-    margin-top: 5px;
-}
-.comment-content-box {
-    background: var(--bg-body);
-    border-radius: 18px;
-    padding: 8px 12px;
-    max-width: 85%;
-    position: relative;
-}
-.comment-content-box p {
-    margin: 0;
-    font-size: 14px;
-    line-height: 1.4;
-}
-.comment-author-name {
-    font-weight: 600;
-    font-size: 13px;
-    display: block;
-    margin-bottom: 2px;
-}
-.comment-footer {
-    display: flex;
-    gap: 10px;
-    margin-left: 45px; /* Căn chỉnh với bình luận */
-    margin-top: 2px;
-}
-.comment-footer span {
-    font-size: 11px;
-    color: var(--text-sub);
-}
-.comment-footer button {
-    background: none;
-    border: none;
-    color: var(--text-sub);
-    font-size: 11px;
-    font-weight: 600;
-    cursor: pointer;
-    padding: 0;
-}
-.comment-footer button:hover {
-    text-decoration: underline;
-}
-.delete-comment-btn {
-    color: #e41e3f;
-    font-size: 16px;
-    margin-left: 5px;
-    cursor: pointer;
-    padding: 5px;
-    opacity: 0;
-    transition: opacity 0.2s;
-}
-.comment-item:hover .delete-comment-btn {
-    opacity: 1;
-}
-
-/* --- OTHER MODAL STYLES (KEEP) --- */
 .modal-body {
   padding: 20px;
   overflow-y: auto;
@@ -838,8 +1049,8 @@ body {
   font-weight: 600;
 }
 .btn-primary:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 .hidden {
   display: none !important;
@@ -933,9 +1144,13 @@ body {
     width: 90vw;
     max-width: 500px;
   }
-
+  
+  /* Cập nhật responsive cho comment box */
   .comment-box {
-    width: 90vw;
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    border-radius: 0;
   }
   
   .stories-wrapper {
@@ -1003,10 +1218,6 @@ body {
   }
 
   .profile-edit-box {
-    width: 95vw;
-  }
-
-  .comment-box {
     width: 95vw;
   }
   
