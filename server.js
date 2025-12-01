@@ -7,7 +7,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import db from "./db.js";
 import path from "path";
-import fs from "fs"; 
+import fs from "fs";
 import { fileURLToPath } from "url";
 import multer from "multer";
 import nodemailer from "nodemailer";
@@ -19,7 +19,8 @@ const __dirname = path.dirname(__filename);
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const JWT_SECRET = process.env.JWT_SECRET || "secret_key_nexus_2025";
-const AI_BOT_ID = 1; 
+const AI_BOT_ID = 1;
+const MAX_HISTORY = 20; // Lưu 20 tin nhắn gần nhất
 
 if (!GEMINI_API_KEY) {
   console.error("⚠️ CHƯA CẤU HÌNH GEMINI_API_KEY. AI không hoạt động.");
@@ -206,66 +207,244 @@ app.post("/api/groups/create", authenticateToken, async (req, res) => {
   } catch (e) { await conn.rollback(); res.status(500).json({ message: "Error" }); } finally { conn.release(); }
 });
 
-// --- GEMINI AI LOGIC (FIXED) ---
-async function callGeminiAPI(text) {
-  const modelName = "gemini-2.0-flash";
-  const url = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
-  
-  console.log(`🤖 Đang gọi model: ${modelName}...`);
+// === AI FRIEND RECOMMENDATIONS ===
+app.post("/api/ai/recommend-friends", authenticateToken, async (req, res) => {
+  const { criteria } = req.body;
+  const userId = req.user.userId;
+
+  if (!GEMINI_API_KEY) {
+    return res.status(503).json({ message: "AI chưa được cấu hình" });
+  }
 
   try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                text: text,
-              },
-            ],
-          },
-        ],
-      }),
-    });
+    const [userInfo] = await db.query("SELECT bio, location, work, education FROM users WHERE id=?", [userId]);
+    const user = userInfo[0];
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error(`❌ Lỗi từ Google API:`, errText);
-      return null;
+    const [potentialFriends] = await db.query(
+      `SELECT id, username, nickname, avatar, bio, location, work, education 
+       FROM users 
+       WHERE id != ? AND id != 1 
+       AND id NOT IN (
+         SELECT receiverId FROM friend_requests WHERE senderId = ? AND status = 'accepted'
+         UNION 
+         SELECT senderId FROM friend_requests WHERE receiverId = ? AND status = 'accepted'
+       )
+       AND id NOT IN (
+         SELECT receiverId FROM friend_requests WHERE senderId = ? AND status = 'pending'
+         UNION 
+         SELECT senderId FROM friend_requests WHERE receiverId = ? AND status = 'pending'
+       )
+       LIMIT 50`,
+      [userId, userId, userId, userId, userId]
+    );
+
+    if (potentialFriends.length === 0) {
+      return res.json({ recommendations: [], reasons: [] });
     }
 
-    const data = await response.json();
-    return data;
-  } catch (err) {
-    console.error(`❌ Lỗi khi gọi API:`, err.message);
-    return null;
-  }
+    const prompt = `Bạn là hệ thống AI gợi ý bạn bè thông minh.
+
+Thông tin người dùng:
+- Bio: ${user.bio || "Chưa có"}
+- Vị trí: ${user.location || "Chưa có"}
+- Công việc: ${user.work || "Chưa có"}
+- Học vấn: ${user.education || "Chưa có"}
+
+Tiêu chí tìm kiếm: "${criteria || "Những người phù hợp nhất"}"
+
+Danh sách ${potentialFriends.length} người dùng:
+${potentialFriends.map((u, i) => `${i + 1}. ID: ${u.id}, Username: ${u.username}, Nickname: ${u.nickname}
+   Bio: ${u.bio || "Không có"}
+   Vị trí: ${u.location || "Không có"}
+   Công việc: ${u.work || "Không có"}
+   Học vấn: ${u.education || "Không có"}`).join("\n\n")}
+
+Hãy phân tích và gợi ý TOP 5 người phù hợp nhất. Trả lời CHÍNH XÁC theo định dạng JSON này:
+{
+  "recommendations": [
+    {"id": 123, "username": "abc", "reason": "Lý do cụ thể tại sao phù hợp"}
+  ]
 }
 
-// --- SOCKET ---
-async function handleAIChat(msg, uid, socket) {
-  if (!GEMINI_API_KEY) return socket.emit("newMessage", { senderId: AI_BOT_ID, content: "AI chưa sẵn sàng.", createdAt: new Date() });
-  
-  try {
-    const data = await callGeminiAPI(msg);
+LƯU Ý: 
+- ID phải là số nguyên chính xác từ danh sách
+- Reason phải ngắn gọn, cụ thể (1-2 câu)
+- Chỉ trả về JSON, không thêm text nào khác`;
+
+    const data = await callGeminiAPI(prompt);
 
     if (data && data.candidates && data.candidates.length > 0) {
-      const reply = data.candidates[0].content.parts[0].text;
-      const [r] = await db.query("INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)", [AI_BOT_ID, uid, reply]);
-      socket.emit("newMessage", { id: r.insertId, senderId: AI_BOT_ID, content: reply, createdAt: new Date() });
-      console.log(`✅ Phản hồi AI gửi thành công`);
+      const responseText = data.candidates[0].content.parts[0].text;
+      const jsonMatch = responseText.match(/\{[\s\S]*?\n?\s*\}/);
+
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        const recommendedIds = parsed.recommendations.map((r) => parseInt(r.id));
+        const placeholders = recommendedIds.map(() => '?').join(',');
+        const [detailedUsers] = await db.query(
+          `SELECT id, username, nickname, avatar FROM users WHERE id IN (${placeholders})`,
+          recommendedIds
+        );
+
+        const finalRecommendations = detailedUsers.map((u) => {
+          const reason = parsed.recommendations.find((r) => parseInt(r.id) === u.id);
+          return {
+            ...u,
+            reason: reason ? reason.reason : "Người dùng phù hợp",
+          };
+        });
+
+        res.json({
+          recommendations: finalRecommendations,
+          total: finalRecommendations.length,
+        });
+      } else {
+        console.warn("⚠️ Không parse được JSON từ AI:", responseText);
+        res.status(400).json({ message: "AI trả về không hợp lệ" });
+      }
     } else {
-      socket.emit("newMessage", { senderId: AI_BOT_ID, content: "Hệ thống AI đang quá tải. Vui lòng kiểm tra lại Key hoặc thử lại sau.", createdAt: new Date() });
-      console.error(`⚠️ Không nhận được phản hồi từ AI`);
+      res.status(500).json({ message: "AI không phản hồi" });
     }
-  } catch (e) { 
-    socket.emit("newMessage", { senderId: AI_BOT_ID, content: "AI bận.", createdAt: new Date() });
-    console.error(`❌ Lỗi AI:`, e.message);
+  } catch (e) {
+    console.error("❌ AI recommendation error:", e);
+    res.status(500).json({ message: "Lỗi hệ thống: " + e.message });
+  }
+});
+
+// --- GEMINI AI LOGIC (FIXED) ---
+async function callGeminiAPI(text) {
+  // Thử các model khác nhau
+  const models = ["gemini-2.0-flash-exp", "gemini-1.5-flash", "gemini-pro"];
+  let lastError = null;
+
+  for (const modelName of models) {
+    const url = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
+    
+    console.log(`🤖 Đang thử model: ${modelName}...`);
+
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: text }],
+          }],
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log(`✅ Thành công với model: ${modelName}`);
+        return data;
+      } else {
+        const errText = await response.text();
+        console.warn(`⚠️ Model ${modelName} không khả dụng:`, errText);
+        lastError = errText;
+        // Thử model tiếp theo
+        continue;
+      }
+    } catch (err) {
+      console.warn(`⚠️ Lỗi với model ${modelName}:`, err.message);
+      lastError = err.message;
+      continue;
+    }
+  }
+
+  console.error(`❌ Tất cả models đều thất bại. Lỗi cuối:`, lastError);
+  return null;
+}
+
+// --- SOCKET AI CHAT HANDLER (WITH CONTEXT) ---
+async function handleAIChat(msg, uid, socket) {
+  if (!GEMINI_API_KEY) {
+    return socket.emit("newMessage", {
+      senderId: AI_BOT_ID,
+      content: "⚠️ AI chưa được cấu hình. Vui lòng liên hệ quản trị viên.",
+      createdAt: new Date(),
+    });
+  }
+
+  try {
+    // Lấy lịch sử cuộc trò chuyện từ database
+    const limitValue = Number(MAX_HISTORY) || 20;
+    const [chatHistory] = await db.query(
+      `SELECT content, senderId, createdAt 
+       FROM messages 
+       WHERE (senderId=? AND recipientId=?) OR (senderId=? AND recipientId=?) 
+       ORDER BY createdAt DESC 
+       LIMIT ${limitValue}`,
+      [uid, AI_BOT_ID, AI_BOT_ID, uid]
+    );
+
+    // Xây dựng prompt với context
+    const systemPrompt = `Bạn là trợ lý ảo thông minh tên "Nexus AI" cho mạng xã hội Nexus. 
+Nhiệm vụ của bạn:
+- Trả lời bằng tiếng Việt thân thiện, tự nhiên
+- Hỗ trợ người dùng về các tính năng mạng xã hội
+- Gợi ý bạn bè, nhóm, hoạt động
+- Trò chuyện như một người bạn thật sự
+- Nhớ ngữ cảnh cuộc trò chuyện trước đó`;
+
+    let fullPrompt = systemPrompt + "\n\n";
+    
+    // Thêm lịch sử chat (đảo ngược để đúng thứ tự thời gian)
+    if (chatHistory.length > 0) {
+      fullPrompt += "Lịch sử cuộc trò chuyện:\n";
+      chatHistory.reverse().forEach((h) => {
+        if (h.senderId === AI_BOT_ID) {
+          fullPrompt += `AI: ${h.content}\n`;
+        } else {
+          fullPrompt += `User: ${h.content}\n`;
+        }
+      });
+      fullPrompt += "\n";
+    }
+
+    // Thêm tin nhắn mới nhất
+    fullPrompt += `User: ${msg}\nAI:`;
+
+    console.log(`🤖 Đang xử lý câu hỏi từ user ${uid}:`, msg);
+
+    const data = await callGeminiAPI(fullPrompt);
+
+    if (data && data.candidates && data.candidates.length > 0) {
+      const candidate = data.candidates[0];
+
+      // Kiểm tra safety ratings
+      if (candidate.finishReason === "SAFETY") {
+        const reply = "Xin lỗi, tôi không thể trả lời câu hỏi này do vi phạm chính sách an toàn nội dung. Bạn có thể hỏi tôi điều gì khác không? 😊";
+        const [r] = await db.query("INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)", [AI_BOT_ID, uid, reply]);
+        socket.emit("newMessage", { id: r.insertId, senderId: AI_BOT_ID, content: reply, createdAt: new Date() });
+        return;
+      }
+
+      // Lấy phản hồi từ AI
+      if (!candidate.content || !candidate.content.parts || candidate.content.parts.length === 0) {
+        throw new Error("AI response không có nội dung");
+      }
+      const reply = candidate.content.parts[0].text.trim();
+
+      // Lưu phản hồi vào database
+      const [r] = await db.query("INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)", [AI_BOT_ID, uid, reply]);
+
+      // Gửi phản hồi cho user
+      socket.emit("newMessage", { id: r.insertId, senderId: AI_BOT_ID, content: reply, createdAt: new Date() });
+
+      console.log(`✅ AI phản hồi thành công cho user ${uid}`);
+    } else {
+      const errorMsg = "Xin lỗi, tôi đang gặp chút vấn đề. Bạn có thể thử lại không? 🤔";
+      socket.emit("newMessage", { senderId: AI_BOT_ID, content: errorMsg, createdAt: new Date() });
+      console.warn(`⚠️ Không nhận được phản hồi hợp lệ từ AI`);
+    }
+  } catch (e) {
+    console.error(`❌ Lỗi AI:`, e.message, e.stack);
+    const errorMsg = "Rất xin lỗi, có lỗi xảy ra. Bạn vui lòng thử lại sau nhé! 😅";
+    socket.emit("newMessage", { senderId: AI_BOT_ID, content: errorMsg, createdAt: new Date() });
   }
 }
 
+// --- SOCKET.IO ---
 io.use((socket, next) => {
   const token = socket.handshake.auth.token;
   jwt.verify(token, JWT_SECRET, (err, user) => {
@@ -346,4 +525,4 @@ io.on("connection", async (socket) => {
 
 app.get("*", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`✅ Server running`));
+server.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
