@@ -390,9 +390,11 @@ LƯU Ý:
         );
 
         // Lấy thông tin chi tiết
+        // Tạo placeholder động cho IN clause
+        const placeholders = recommendedIds.map(() => '?').join(',');
         const [detailedUsers] = await db.query(
-          `SELECT id, username, nickname, avatar FROM users WHERE id IN (?)`,
-          [recommendedIds]
+          `SELECT id, username, nickname, avatar FROM users WHERE id IN (${placeholders})`,
+          recommendedIds
         );
 
         // Kết hợp với reasons
@@ -484,13 +486,16 @@ async function handleAIChat(msg, uid, socket) {
 
   try {
     // Lấy lịch sử cuộc trò chuyện từ database
+    // Sử dụng giá trị trực tiếp cho LIMIT vì MySQL2 không hỗ trợ placeholder cho LIMIT
+    // MAX_HISTORY là hằng số nên an toàn khi chèn trực tiếp
+    const limitValue = Number(MAX_HISTORY) || 20;
     const [chatHistory] = await db.query(
       `SELECT content, senderId, createdAt 
        FROM messages 
        WHERE (senderId=? AND recipientId=?) OR (senderId=? AND recipientId=?) 
        ORDER BY createdAt DESC 
-       LIMIT ?`,
-      [uid, AI_BOT_ID, AI_BOT_ID, uid, MAX_HISTORY]
+       LIMIT ${limitValue}`,
+      [uid, AI_BOT_ID, AI_BOT_ID, uid]
     );
 
     // Xây dựng messages theo format của Gemini API
