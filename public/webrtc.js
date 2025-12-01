@@ -1,26 +1,21 @@
 document.addEventListener("DOMContentLoaded", () => {
   if (!window.socket || !window.location.pathname.endsWith("/chat.html")) return;
 
-  // Ẩn modal ngay lập tức để tránh lỗi giao diện
   const incomingModal = document.getElementById("incoming-call-modal");
   const callWindow = document.getElementById("call-window");
   if (incomingModal) incomingModal.classList.add("hidden");
   if (callWindow) callWindow.classList.add("hidden");
 
-  // DOM Elements
   const callButton = document.getElementById("call-button");
   const videoCallButton = document.getElementById("video-call-button");
   const endCallButton = document.getElementById("end-call-button");
-  
   const remoteVideo = document.getElementById("remoteVideo");
   const localVideo = document.getElementById("localVideo");
-  
   const incomingAvatar = document.getElementById("incoming-avatar");
   const incomingName = document.getElementById("incoming-name");
   const btnAccept = document.getElementById("btn-accept-call");
   const btnReject = document.getElementById("btn-reject-call");
   const ringtone = document.getElementById("ringtone");
-
   const toggleMic = document.getElementById("toggle-mic");
   const toggleCam = document.getElementById("toggle-cam");
 
@@ -30,50 +25,35 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentRecipientId = null;
   let callTimeout = null;
 
-  // Cấu hình STUN Server (Quan trọng để kết nối mạng khác nhau)
+  // CẤU HÌNH STUN SERVER MẠNH MẼ HƠN
   const rtcConfig = {
     iceServers: [
       { urls: "stun:stun.l.google.com:19302" },
+      { urls: "stun:stun1.l.google.com:19302" },
+      { urls: "stun:stun2.l.google.com:19302" },
       { urls: "stun:global.stun.twilio.com:3478" }
     ]
   };
 
-  // --- 1. SỬA LỖI NHẠC CHUÔNG (AbortError) ---
-  const playRingtone = async () => {
-    if (ringtone) {
-      try {
-        ringtone.currentTime = 0;
-        await ringtone.play();
-      } catch (err) {
-        // Bỏ qua lỗi AbortError (do pause gọi quá nhanh) hoặc NotAllowedError (chưa tương tác)
-        if (err.name !== "AbortError") {
-          console.warn("Không thể phát nhạc chuông (Người dùng cần tương tác trước):", err);
-        }
-      }
-    }
-  };
-
-  const stopRingtone = () => {
-    if (ringtone) {
-      ringtone.pause();
-      ringtone.currentTime = 0;
-    }
-  };
+  const playRingtone = async () => { if(ringtone) { try { ringtone.currentTime = 0; await ringtone.play(); } catch (e) {} } };
+  const stopRingtone = () => { if(ringtone) { ringtone.pause(); ringtone.currentTime = 0; } };
 
   const handleMediaError = (err) => {
       console.error("Lỗi Media:", err);
       let msg = "Lỗi thiết bị.";
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') msg = "⚠️ Bạn đã chặn quyền Camera/Mic. Vui lòng mở khóa trên thanh địa chỉ.";
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') msg = "⚠️ Bạn đã chặn quyền Camera/Mic.";
       else if (err.name === 'NotFoundError') msg = "❌ Không tìm thấy Camera/Mic.";
-      else if (err.name === 'NotReadableError') msg = "⛔ Camera/Mic đang bị ứng dụng khác (Zoom/Zalo) sử dụng.";
-      
-      alert(msg);
-      hangUp();
+      else if (err.name === 'NotReadableError') msg = "⛔ Camera/Mic đang bận.";
+      alert(msg); hangUp();
   };
 
   const createPeerConnection = (stream) => {
     const pc = new RTCPeerConnection(rtcConfig);
-    if (stream) stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+    
+    // Thêm stream của mình vào kết nối
+    if (stream) {
+        stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+    }
     
     pc.onicecandidate = (e) => {
       if (e.candidate) {
@@ -82,33 +62,38 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     };
 
+    // SỬA LỖI MÀN HÌNH ĐEN: Ép video chạy
     pc.ontrack = (e) => {
+      console.log("🎥 Nhận được video từ đối phương!");
       if (remoteVideo.srcObject !== e.streams[0]) {
           remoteVideo.srcObject = e.streams[0];
+          // Ép play
+          remoteVideo.play().catch(err => console.log("Cần tương tác để phát video:", err));
       }
     };
 
     pc.onconnectionstatechange = () => {
-        if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
+        console.log("Connection State:", pc.connectionState);
+        if (pc.connectionState === "failed") {
+            alert("Mất kết nối mạng với đối phương (Do tường lửa/Mạng yếu).");
             hangUp(false);
         }
     };
     return pc;
   };
 
-  // --- 2. SỬA LỖI GỬI OFFER (Sửa lỗi 'type is null') ---
   const startCall = async (isVideo) => {
     if (!window.currentChatContext.id) return alert("Chọn người để gọi.");
     currentRecipientId = window.currentChatContext.id;
     
-    // Reset nút
+    // Reset giao diện
     if(toggleMic) toggleMic.style.background = "rgba(255,255,255,0.2)";
     if(toggleCam) toggleCam.style.background = "rgba(255,255,255,0.2)";
 
     try {
       localStream = await navigator.mediaDevices.getUserMedia({ video: isVideo, audio: true });
       localVideo.srcObject = localStream;
-      localVideo.muted = true; // Tắt tiếng mình để đỡ vọng
+      localVideo.muted = true;
       callWindow.classList.remove("hidden");
 
       peerConnection = createPeerConnection(localStream);
@@ -116,42 +101,28 @@ document.addEventListener("DOMContentLoaded", () => {
       const offer = await peerConnection.createOffer();
       await peerConnection.setLocalDescription(offer);
 
-      // QUAN TRỌNG: Gửi object rõ ràng để tránh lỗi "type is null"
-      const offerPayload = { 
-          type: offer.type, 
-          sdp: offer.sdp 
-      };
-
       window.socket.emit("callOffer", { 
           recipientId: currentRecipientId, 
-          offer: offerPayload, 
+          offer: { type: offer.type, sdp: offer.sdp }, 
           isVideo 
       });
 
     } catch (err) { handleMediaError(err); }
   };
 
-  // --- 3. XỬ LÝ NHẬN CUỘC GỌI ---
   window.socket.on("callOffer", ({ senderId, senderName, senderAvatar, offer, isVideo }) => {
-    // Kiểm tra tính hợp lệ của offer
-    if (!offer || !offer.type || !offer.sdp) {
-        console.error("❌ Nhận được Offer lỗi:", offer);
-        return; 
-    }
-
     if (currentCallerId || currentRecipientId) {
       window.socket.emit("callReject", { callerId: senderId, reason: "BUSY" });
       return;
     }
     
     currentCallerId = senderId;
-    incomingName.textContent = senderName || "Người dùng Nexus";
+    incomingName.textContent = senderName || "Nexus User";
     incomingAvatar.src = senderAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(senderName||"User")}`;
     incomingModal.classList.remove("hidden");
     
-    playRingtone(); // Phát nhạc chuông (đã sửa lỗi)
+    playRingtone();
 
-    // Timeout 30s
     if (callTimeout) clearTimeout(callTimeout);
     callTimeout = setTimeout(() => {
         if (!peerConnection) {
@@ -162,7 +133,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }, 30000);
 
-    // Chấp nhận cuộc gọi
+    // CHẤP NHẬN CUỘC GỌI
     btnAccept.onclick = async () => {
         clearTimeout(callTimeout);
         stopRingtone();
@@ -174,26 +145,25 @@ document.addEventListener("DOMContentLoaded", () => {
             localVideo.muted = true;
             callWindow.classList.remove("hidden");
             
-            peerConnection = createPeerConnection(localStream);
+            peerConnection = createPeerConnection(localStream); // Đã bao gồm addTrack bên trong hàm này
             
-            // Thiết lập Remote Description (đã fix lỗi type null nhờ bước kiểm tra trên)
             await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
             
             const answer = await peerConnection.createAnswer();
             await peerConnection.setLocalDescription(answer);
             
-            // Gửi Answer rõ ràng
-            const answerPayload = { type: answer.type, sdp: answer.sdp };
-            window.socket.emit("callAnswer", { recipientId: senderId, answer: answerPayload });
+            window.socket.emit("callAnswer", { 
+                recipientId: senderId, 
+                answer: { type: answer.type, sdp: answer.sdp } 
+            });
 
         } catch (e) {
-            console.error("Lỗi khi chấp nhận cuộc gọi:", e);
+            console.error("Lỗi accept:", e);
             handleMediaError(e);
             window.socket.emit("callReject", { callerId: senderId, reason: "ERROR" });
         }
     };
 
-    // Từ chối cuộc gọi
     btnReject.onclick = () => {
         clearTimeout(callTimeout);
         stopRingtone();
@@ -204,18 +174,13 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   window.socket.on("callAnswer", async ({ answer }) => {
-    if (peerConnection && answer && answer.type) {
-        try {
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-        } catch (e) { console.error("Lỗi setRemoteDescription (Answer):", e); }
-    }
+    if (peerConnection) await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
   });
 
   window.socket.on("receiveICE", async ({ candidate }) => {
-    if (peerConnection && candidate) {
-        try {
-            await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-        } catch (e) { console.error("Lỗi addIceCandidate:", e); }
+    if (peerConnection) {
+        try { await peerConnection.addIceCandidate(new RTCIceCandidate(candidate)); } 
+        catch (e) { console.error("Lỗi ICE:", e); }
     }
   });
   
@@ -252,7 +217,6 @@ document.addEventListener("DOMContentLoaded", () => {
     currentCallerId = null;
   };
 
-  // Event Listeners
   if (callButton) callButton.addEventListener("click", () => startCall(false));
   if (videoCallButton) videoCallButton.addEventListener("click", () => startCall(true));
   if (endCallButton) endCallButton.addEventListener("click", () => hangUp(true));
@@ -278,7 +242,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   window.addEventListener("contextChanged", () => {
-    const canCall = window.currentChatContext.type === "user" && window.currentChatContext.id !== 0 && window.currentChatContext.id !== 1; // 1 là AI Bot
+    const canCall = window.currentChatContext.type === "user" && window.currentChatContext.id !== 0 && window.currentChatContext.id !== 1;
     if (callButton) callButton.style.display = canCall ? "inline-block" : "none";
     if (videoCallButton) videoCallButton.style.display = canCall ? "inline-block" : "none";
   });
