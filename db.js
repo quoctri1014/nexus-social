@@ -1,4 +1,4 @@
-// db.js - Cấu hình kết nối MySQL an toàn (cho TiDB Cloud)
+// db.js - Cấu hình kết nối MySQL (Hỗ trợ Render & TiDB Cloud)
 
 import mysql from 'mysql2/promise';
 import fs from 'fs';
@@ -7,62 +7,73 @@ import dotenv from 'dotenv';
 // 1. Đảm bảo đọc các biến từ file .env (nếu chạy cục bộ)
 dotenv.config();
 
-const DB_CA_PATH = process.env.DB_CA_PATH || './ca.pem';
 const DB_HOST = process.env.DB_HOST || 'localhost';
 
+// Hàm lấy cấu hình SSL linh hoạt (File hoặc Biến môi trường)
+const getSSLConfig = () => {
+  if (DB_HOST === 'localhost') return undefined; // Localhost không cần SSL
+
+  // Ưu tiên 1: Đọc nội dung CA từ biến môi trường (Dành cho Render)
+  if (process.env.DB_CA_CONTENT) {
+    console.log("🔒 Đang sử dụng SSL từ biến môi trường DB_CA_CONTENT");
+    return {
+      ca: process.env.DB_CA_CONTENT,
+      rejectUnauthorized: true
+    };
+  }
+
+  // Ưu tiên 2: Đọc từ file (Dành cho Local nếu có file)
+  const caPath = process.env.DB_CA_PATH || './ca.pem';
+  if (fs.existsSync(caPath)) {
+    console.log(`🔒 Đang sử dụng SSL từ file: ${caPath}`);
+    return {
+      ca: fs.readFileSync(caPath),
+      rejectUnauthorized: true
+    };
+  }
+
+  // Nếu không có cả 2 -> Cảnh báo (TiDB bắt buộc phải có SSL)
+  console.warn("⚠️ Cảnh báo: Không tìm thấy chứng chỉ SSL (CA). Kết nối có thể thất bại.");
+  return { rejectUnauthorized: false }; // Thử kết nối không xác minh (không khuyến khích)
+};
+
 const dbConfig = {
-  // Lấy từ Biến Môi Trường (Quan trọng khi Deploy)
   host: DB_HOST,
-  port: process.env.DB_PORT || 4000,
+  port: process.env.DB_PORT ? parseInt(process.env.DB_PORT) : 4000,
   user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '', // Nếu đang chạy local
+  password: process.env.DB_PASSWORD || '',
   database: process.env.DB_DATABASE || 'chatbot_db',
 
   // Thiết lập Pool Connection
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-  namedPlaceholders: true,
-
-  // --- 2. CẤU HÌNH TLS/SSL CHO TiDB CLOUD ---
-  // Chỉ thêm cấu hình SSL nếu host không phải là localhost (nghĩa là đang kết nối công khai)
-  ...(DB_HOST !== 'localhost' ? {
-      ssl: {
-        // Đọc nội dung file chứng chỉ CA (.pem) đã tải xuống
-        ca: fs.readFileSync(DB_CA_PATH),
-        // Bật xác minh máy chủ
-        rejectUnauthorized: true 
-      }
-  } : {})
+  namedPlaceholders: true, // Cho phép dùng params kiểu :name (nếu cần)
+  
+  // Cấu hình SSL
+  ssl: getSSLConfig()
 };
 
 // Tạo Pool Connection
 const pool = mysql.createPool(dbConfig);
 
-// Kiểm tra kết nối
+// Kiểm tra kết nối ngay khi khởi động
 pool.getConnection()
   .then(connection => {
-    console.log("✅ Database connected successfully!");
+    console.log(`✅ Database connected successfully to ${DB_HOST}!`);
     connection.release();
   })
   .catch(err => {
     console.error("❌ Database connection failed:", err.message);
-    if (err.code === 'ER_BAD_DB_ERROR') {
-      console.error('Lỗi: Database không tồn tại.');
-    } else if (err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND') {
-      console.error(`Lỗi: Không thể kết nối đến host ${DB_HOST}. Server database có đang chạy không?`);
-    } else if (err.code === 'ER_ACCESS_DENIED_ERROR') {
-      console.error('Lỗi: Sai user hoặc mật khẩu database.');
-    } else if (err.code === 'ENOENT' && DB_HOST !== 'localhost') {
-        console.error(`Lỗi: Không tìm thấy file chứng chỉ CA tại đường dẫn: ${DB_CA_PATH}.`);
+    if (err.code === 'ENOENT') {
+       console.error("💡 Gợi ý: Trên Render, hãy copy nội dung file ca.pem vào biến môi trường 'DB_CA_CONTENT'");
     }
-    process.exit(1);
   });
 
-
 // --- 3. EXPORT CHUẨN ---
-// Export module để server.js có thể sử dụng (ví dụ: db.query(...))
 const db = {
+    // Lưu ý: pool.execute tốt hơn pool.query cho bảo mật, nhưng kén cú pháp hơn. 
+    // Nếu gặp lỗi cú pháp SQL, hãy thử đổi thành pool.query(sql, params)
     query: (sql, params) => pool.execute(sql, params),
     getConnection: () => pool.getConnection(),
     pool: pool 
