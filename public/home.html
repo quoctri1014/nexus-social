@@ -42,7 +42,9 @@
           </button>
           <div class="user-profile" id="open-profile-btn">
             <img id="nav-avatar" src="" alt="" />
-            <span id="nav-username" style="font-weight: 600; font-size: 14px; margin-left: 5px;">User</span>
+            <div class="user-info-nav">
+                <span id="nav-username">...</span>
+            </div>
           </div>
           <div class="nav-btn" id="theme-toggle"><i class="fas fa-adjust"></i></div>
           <div class="nav-btn" onclick="logout()" title="Đăng xuất"><i class="fas fa-sign-out-alt"></i></div>
@@ -69,24 +71,33 @@
 
       <main class="feed-content">
         <div class="stories-wrapper">
-          <div class="story-card create-story-card">
-             <div class="story-img-top"><img id="story-my-avatar" src="" alt="" /></div>
-             <div class="story-footer">
-               <div class="add-story-btn"><i class="fas fa-plus"></i></div>
-               <span>Tạo tin</span>
-             </div>
+          <div class="story-card create-story-card" onclick="document.getElementById('story-input').click()">
+            <div class="story-img-top"><img id="story-my-avatar" src="" alt="" /></div>
+            <div class="story-footer">
+              <div class="add-story-btn"><i class="fas fa-plus"></i></div>
+              <span>Tạo tin</span>
+            </div>
+            <input type="file" id="story-input" hidden accept="image/*" />
           </div>
-          </div>
+          <div id="stories-list" class="other-stories"></div>
+        </div>
 
         <div class="create-post-card">
           <div class="cp-input-section">
             <img id="cp-avatar" src="" alt="" />
-            <div class="input-fake"><input type="text" placeholder="Bạn đang nghĩ gì thế?" /></div>
+            <div class="input-fake"><input type="text" id="post-content-input" placeholder="Bạn đang nghĩ gì thế?" /></div>
+          </div>
+          <div id="post-preview-area" class="hidden">
+            <img id="post-preview-img" />
+            <button id="remove-preview"><i class="fas fa-times"></i></button>
           </div>
           <div class="cp-actions">
-            <div class="cp-btn"><i class="fas fa-images" style="color: #45bd62"></i><span>Ảnh/Video</span></div>
+            <div class="cp-btn" onclick="document.getElementById('post-image-input').click()">
+                <i class="fas fa-images" style="color: #45bd62"></i><span>Ảnh/Video</span>
+            </div>
             <button id="post-btn">Đăng</button>
           </div>
+          <input type="file" id="post-image-input" hidden accept="image/*" />
         </div>
 
         <div id="feed-container"></div>
@@ -103,9 +114,12 @@
     <div id="comment-modal" class="modal-backdrop hidden">
       <div class="modal-content comment-box">
         <div class="modal-header">
-          <h2 style="margin: 0 auto;">Bài viết của <span id="modal-post-author"></span></h2>
-          <div class="close-btn-wrapper" id="close-comment-modal-x">
-             <i class="fas fa-times"></i>
+          <div style="flex:1"></div>
+          <h2>Bài viết của <span id="modal-post-author"></span></h2>
+          <div style="flex:1; display:flex; justify-content:flex-end;">
+             <div class="close-btn-wrapper" id="close-comment-modal-x">
+                <i class="fas fa-times"></i>
+             </div>
           </div>
         </div>
         
@@ -123,16 +137,36 @@
     </div>
 
     <div id="profile-modal" class="modal-backdrop hidden">
-        <div class="modal-content profile-edit-box">
-             <div class="modal-header"><h2>Cập nhật thông tin</h2><i class="fas fa-times" id="close-modal-x"></i></div>
-             <div class="modal-body">
-                 </div>
-             <div class="modal-footer">
-                 <button id="save-profile-btn" class="btn-primary">Lưu</button>
-             </div>
-         </div>
+      <div class="modal-content profile-edit-box">
+        <div class="modal-header">
+          <h2>Chỉnh sửa trang cá nhân</h2>
+          <i class="fas fa-times" id="close-modal-x" style="cursor: pointer"></i>
+        </div>
+        <div class="modal-body">
+          <div class="profile-section center">
+            <div class="profile-avatar-edit">
+              <img id="edit-avatar-preview" src="" />
+              <label for="edit-avatar-input" class="edit-icon"><i class="fas fa-camera"></i></label>
+              <input type="file" id="edit-avatar-input" hidden accept="image/*" />
+            </div>
+          </div>
+          <div class="profile-section">
+            <h3>Thông tin chi tiết</h3>
+            <div class="form-group"><label>Tên hiển thị</label><input type="text" id="edit-nickname" /></div>
+            <div class="form-group"><label>Tiểu sử</label><textarea id="edit-bio" rows="3"></textarea></div>
+            <div class="form-group-icon"><i class="fas fa-map-marker-alt"></i><input type="text" id="edit-location" placeholder="Sống tại" /></div>
+            <div class="form-group-icon"><i class="fas fa-briefcase"></i><input type="text" id="edit-work" placeholder="Công việc" /></div>
+            <div class="form-group-icon"><i class="fas fa-graduation-cap"></i><input type="text" id="edit-edu" placeholder="Học vấn" /></div>
+          </div>
+        </div>
+        <div class="modal-footer" style="display: flex; gap: 10px">
+          <button id="cancel-profile-btn" class="btn-secondary" style="flex: 1">Hủy</button>
+          <button id="save-profile-btn" class="btn-primary" style="flex: 2">Lưu thay đổi</button>
+        </div>
+      </div>
     </div>
 
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script src="home.js"></script>
   </body>
 </html>
