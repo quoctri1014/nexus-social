@@ -87,10 +87,15 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-// --- GEMINI AI LOGIC WITH CONTEXT (FIX 1: Thêm callGeminiAPI) ---
+// --- GEMINI AI LOGIC WITH CONTEXT (FIXED) ---
 async function callGeminiAPI(prompt) {
-  const modelName = "gemini-2.0-flash";
-  const url = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
+  if (!GEMINI_API_KEY) {
+    console.error("❌ Không có GEMINI_API_KEY");
+    return null;
+  }
+
+  const modelName = "gemini-2.0-flash-exp";
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
   
   try {
     const response = await fetch(url, {
@@ -99,23 +104,24 @@ async function callGeminiAPI(prompt) {
       body: JSON.stringify({
         contents: [
           {
-            parts: [
-              {
-                text: prompt,
-              },
-            ],
-          },
+            parts: [{ text: prompt }]
+          }
         ],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 1000,
+        }
       }),
     });
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error(`❌ Lỗi từ Google API:`, errText);
+      console.error(`❌ Lỗi từ Google API (${response.status}):`, errText);
       return null;
     }
 
     const data = await response.json();
+    console.log("✅ AI Response nhận được:", JSON.stringify(data).substring(0, 200));
     return data;
   } catch (err) {
     console.error(`❌ Lỗi khi gọi API:`, err.message);
@@ -195,7 +201,7 @@ app.get("/api/users/suggestions", authenticateToken, async (req, res) => {
   } catch (e) { res.status(500).json({ message: "Error" }); }
 });
 
-// === NEW: AI FRIEND RECOMMENDATIONS (FIX 2: Sửa route /api/ai/recommend-friends) ===
+// === NEW: AI FRIEND RECOMMENDATIONS ===
 app.post("/api/ai/recommend-friends", authenticateToken, async (req, res) => {
   const { criteria } = req.body;
   const userId = req.user.userId;
@@ -637,73 +643,70 @@ app.delete("/api/posts/:postId", authenticateToken, async (req, res) => {
 
 // ===== END OF NEW API ENDPOINTS =====
 
-
-// --- SOCKET ---
-// (FIX 3: Sửa hàm handleAIChat trong Socket)
+// --- SOCKET HANDLER FOR AI CHAT (FIXED) ---
 async function handleAIChat(msg, uid, socket) {
   if (!GEMINI_API_KEY) {
-    return socket.emit("newMessage", {
-      senderId: AI_BOT_ID,
-      content: "AI chưa sẵn sàng. Vui lòng kiểm tra cấu hình.",
-      createdAt: new Date()
+    console.error("❌ GEMINI_API_KEY chưa được cấu hình");
+    return socket.emit("newMessage", { 
+      senderId: AI_BOT_ID, 
+      content: "❌ AI chưa sẵn sàng. Vui lòng kiểm tra cấu hình API Key.", 
+      createdAt: new Date() 
     });
   }
-    
+  
   try {
     // Lấy lịch sử cuộc trò chuyện
     const [chatHistory] = await db.query(
       "SELECT content, senderId FROM messages WHERE (senderId=? AND recipientId=?) OR (senderId=? AND recipientId=?) ORDER BY createdAt DESC LIMIT ?",
       [uid, AI_BOT_ID, AI_BOT_ID, uid, MAX_HISTORY]
     );
-    
+
     // Xây dựng context từ lịch sử
-    let contextPrompt = `Bạn là một trợ lý ảo thông minh cho mạng xã hội Nexus. Hãy trả lời bằng tiếng Việt.
-    
+    let contextPrompt = `Bạn là một trợ lý ảo thông minh cho mạng xã hội Nexus. Hãy trả lời bằng tiếng Việt một cách thân thiện và hữu ích.
+
 Lịch sử trò chuyện gần đây:
-${chatHistory.reverse().map(h => `${h.senderId === AI_BOT_ID ? '🤖 Trợ lý' : '🧑 Người dùng'}: ${h.content}`).join('\n')}
+${chatHistory.length > 0 ? chatHistory.reverse().map(h => `${h.senderId === AI_BOT_ID ? '🤖 Trợ lý' : '👤 Người dùng'}: ${h.content}`).join('\n') : '(Chưa có lịch sử)'}
 
 Câu hỏi mới từ người dùng: ${msg}
 
 Hãy trả lời một cách thân thiện, hữu ích và liên quan đến lịch sử cuộc trò chuyện.`;
 
+    console.log("📤 Đang gửi prompt đến Gemini...");
     const data = await callGeminiAPI(contextPrompt);
 
-    if (!data) {
-      return socket.emit("newMessage", {
-        senderId: AI_BOT_ID,
-        content: "Xin lỗi, hệ thống AI đang gặp sự cố. Vui lòng thử lại sau.",
-        createdAt: new Date()
-      });
-    }
-
-    if (data.candidates && data.candidates.length > 0) {
+    if (data && data.candidates && data.candidates.length > 0) {
       const reply = data.candidates[0].content.parts[0].text;
+      console.log("✅ AI Reply:", reply.substring(0, 100));
+      
+      // Lưu tin nhắn AI vào database
       const [r] = await db.query(
-        "INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)",
+        "INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)", 
         [AI_BOT_ID, uid, reply]
       );
-            
-      socket.emit("newMessage", {
-        id: r.insertId,
-        senderId: AI_BOT_ID,
-        content: reply,
-        createdAt: new Date()
+      
+      // Gửi tin nhắn đến client
+      socket.emit("newMessage", { 
+        id: r.insertId, 
+        senderId: AI_BOT_ID, 
+        content: reply, 
+        createdAt: new Date() 
       });
-            
-      console.log("✅ Phản hồi AI gửi thành công");
+      
+      console.log(`✅ Phản hồi AI gửi thành công cho user ${uid}`);
     } else {
-      socket.emit("newMessage", {
-        senderId: AI_BOT_ID,
-        content: "Xin lỗi, tôi đang quá tải. Vui lòng thử lại sau.",
-        createdAt: new Date()
+      console.error("❌ Gemini API không trả về dữ liệu hợp lệ:", data);
+      socket.emit("newMessage", { 
+        senderId: AI_BOT_ID, 
+        content: "Xin lỗi, tôi đang gặp sự cố kỹ thuật. Vui lòng thử lại sau.", 
+        createdAt: new Date() 
       });
     }
-  } catch (e) {
-    console.error("❌ Lỗi AI:", e.message);
-    socket.emit("newMessage", {
-      senderId: AI_BOT_ID,
-      content: "Lỗi hệ thống AI. Vui lòng thử lại.",
-      createdAt: new Date()
+  } catch (e) { 
+    console.error(`❌ Lỗi AI Handler:`, e.message, e.stack);
+    socket.emit("newMessage", { 
+      senderId: AI_BOT_ID, 
+      content: "⚠️ Lỗi hệ thống AI. Vui lòng thử lại hoặc liên hệ quản trị viên.", 
+      createdAt: new Date() 
     });
   }
 }
@@ -728,22 +731,59 @@ io.on("connection", async (socket) => {
   };
   await sendUserList();
 
+  // --- TRONG PHẦN SOCKET CONNECTION (THAY THẾ ĐOẠN privateMessage) ---
   socket.on("privateMessage", async (data) => {
     const { recipientId, content, ttl } = data;
     if (!recipientId || !content) return;
 
+    // XỬ LÝ TIN NHẮN GỬI ĐẾN AI BOT
     if (recipientId === AI_BOT_ID) {
-      await db.query("INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)", [userId, AI_BOT_ID, content]);
-      socket.emit("newMessage", { senderId: userId, content: content, createdAt: new Date() });
+      console.log(`📨 User ${userId} gửi tin nhắn đến AI: "${content}"`);
+      
+      // Lưu tin nhắn user vào database
+      await db.query(
+        "INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)", 
+        [userId, AI_BOT_ID, content]
+      );
+      
+      // Echo lại tin nhắn của user
+      socket.emit("newMessage", { 
+        senderId: userId, 
+        content: content, 
+        createdAt: new Date() 
+      });
+      
+      // Gọi AI xử lý
       await handleAIChat(content, userId, socket);
       return;
     }
 
-    const [r] = await db.query("INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)", [userId, recipientId, content]);
-    const msg = { id: r.insertId, senderId: userId, content, createdAt: new Date(), ttl };
-    if (onlineUsers[recipientId]) io.to(onlineUsers[recipientId].socketId).emit("newMessage", msg);
+    // XỬ LÝ TIN NHẮN THƯỜNG GIỮA USERS
+    const [r] = await db.query(
+      "INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)", 
+      [userId, recipientId, content]
+    );
+    
+    const msg = { 
+      id: r.insertId, 
+      senderId: userId, 
+      content, 
+      createdAt: new Date(), 
+      ttl 
+    };
+    
+    if (onlineUsers[recipientId]) {
+      io.to(onlineUsers[recipientId].socketId).emit("newMessage", msg);
+    }
+    
     socket.emit("newMessage", msg);
-    if (ttl) setTimeout(async () => { await db.query("DELETE FROM messages WHERE id = ?", [r.insertId]); }, ttl);
+    
+    // Tự hủy tin nhắn nếu có TTL
+    if (ttl) {
+      setTimeout(async () => { 
+        await db.query("DELETE FROM messages WHERE id = ?", [r.insertId]); 
+      }, ttl);
+    }
   });
 
   socket.on("deleteConversation", async ({ recipientId }) => {
