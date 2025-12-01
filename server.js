@@ -1,5 +1,6 @@
 import dotenv from "dotenv";
 dotenv.config();
+
 import express from "express";
 import http from "http";
 import { Server } from "socket.io";
@@ -13,7 +14,7 @@ import multer from "multer";
 import nodemailer from "nodemailer";
 import { v2 as cloudinary } from "cloudinary";
 import { CloudinaryStorage } from "multer-storage-cloudinary";
-import fetch from "node-fetch"; // <-- đảm bảo node-fetch được cài và import (ESM)
+import axios from "axios";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -21,9 +22,7 @@ const __dirname = path.dirname(__filename);
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const JWT_SECRET = process.env.JWT_SECRET || "secret_key_nexus_2025";
 const AI_BOT_ID = 1;
-
-// Lưu trữ context cuộc trò chuyện với từng user (chi tiết nếu cần mở rộng)
-const MAX_HISTORY = 20; // Lưu 20 tin nhắn gần nhất
+const MAX_HISTORY = 20; // keep last 20 messages
 
 if (!GEMINI_API_KEY) {
   console.warn("⚠️ CHƯA CẤU HÌNH GEMINI_API_KEY. AI sẽ không hoạt động.");
@@ -40,7 +39,7 @@ const io = new Server(server, {
 const onlineUsers = {};
 
 app.use(express.static("public"));
-app.use(express.json());
+app.use(express.json({ limit: "5mb" }));
 
 // --- UPLOAD CONFIG ---
 const uploadDir = path.join(__dirname, "public/uploads");
@@ -115,7 +114,8 @@ app.post("/api/send-otp", async (req, res) => {
       "SELECT id FROM users WHERE email = ? OR username = ?",
       [email, username]
     );
-    if (exists.length > 0) return res.status(400).json({ message: "Đã tồn tại!" });
+    if (exists.length > 0)
+      return res.status(400).json({ message: "Đã tồn tại!" });
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     otpStore.set(email, { otp, expires: Date.now() + 300000 });
     await transporter.sendMail({
@@ -307,7 +307,7 @@ app.post("/api/groups/create", authenticateToken, async (req, res) => {
   }
 });
 
-// === AI FRIEND RECOMMENDATIONS ===
+// --- AI FRIEND RECOMMENDATIONS ---
 app.post("/api/ai/recommend-friends", authenticateToken, async (req, res) => {
   const { criteria } = req.body;
   const userId = req.user.userId;
@@ -323,7 +323,8 @@ app.post("/api/ai/recommend-friends", authenticateToken, async (req, res) => {
     );
     const user = userInfo[0] || {};
 
-    const [potentialFriends] = await db.query(`
+    const [potentialFriends] = await db.query(
+      `
       SELECT id, username, nickname, avatar, bio, location, work, education 
       FROM users 
       WHERE id != ? AND id != 1 
@@ -338,18 +339,47 @@ app.post("/api/ai/recommend-friends", authenticateToken, async (req, res) => {
         SELECT senderId FROM friend_requests WHERE receiverId = ? AND status = 'pending'
       )
       LIMIT 50
-    `, [userId, userId, userId, userId, userId]);
+    `,
+      [userId, userId, userId, userId, userId]
+    );
 
     if (!potentialFriends || potentialFriends.length === 0) {
       return res.json({ recommendations: [], reasons: [] });
     }
 
-    const prompt = `Bạn là hệ thống AI gợi ý bạn bè thông minh.\n\nThông tin người dùng:\n- Bio: ${user.bio || "Chưa có"}\n- Vị trí: ${user.location || "Chưa có"}\n- Công việc: ${user.work || "Chưa có"}\n- Học vấn: ${user.education || "Chưa có"}\n\nTiêu chí tìm kiếm: "${criteria || "Những người phù hợp nhất"}"\n\nDanh sách ${potentialFriends.length} người dùng:\n${potentialFriends
+    const prompt = `Bạn là hệ thống AI gợi ý bạn bè thông minh.
+
+Thông tin người dùng:
+- Bio: ${user.bio || "Chưa có"}
+- Vị trí: ${user.location || "Chưa có"}
+- Công việc: ${user.work || "Chưa có"}
+- Học vấn: ${user.education || "Chưa có"}
+
+Tiêu chí tìm kiếm: "${criteria || "Những người phù hợp nhất"}"
+
+Danh sách ${potentialFriends.length} người dùng:
+${potentialFriends
       .map(
         (u, i) =>
-          `${i + 1}. ID: ${u.id}, Username: ${u.username}, Nickname: ${u.nickname}\n   Bio: ${u.bio || "Không có"}\n   Vị trí: ${u.location || "Không có"}\n   Công việc: ${u.work || "Không có"}\n   Học vấn: ${u.education || "Không có"}`
+          `${i + 1}. ID: ${u.id}, Username: ${u.username}, Nickname: ${u.nickname}
+   Bio: ${u.bio || "Không có"}
+   Vị trí: ${u.location || "Không có"}
+   Công việc: ${u.work || "Không có"}
+   Học vấn: ${u.education || "Không có"}`
       )
-      .join("\n\n")}\n\nHãy phân tích và gợi ý TOP 5 người phù hợp nhất. Trả lời CHÍNH XÁC theo định dạng JSON này:\n{\n  "recommendations": [\n    {"id": 123, "username": "abc", "reason": "Lý do cụ thể tại sao phù hợp"}\n  ]\n}\n\nLƯU Ý: \n- ID phải là số nguyên chính xác từ danh sách\n- Reason phải ngắn gọn, cụ thể (1-2 câu)\n- Chỉ trả về JSON, không thêm text nào khác`;
+      .join("\n\n")}
+
+Hãy phân tích và gợi ý TOP 5 người phù hợp nhất. Trả lời CHÍNH XÁC theo định dạng JSON này:
+{
+  "recommendations": [
+    {"id": 123, "username": "abc", "reason": "Lý do cụ thể tại sao phù hợp"}
+  ]
+}
+
+LƯU Ý: 
+- ID phải là số nguyên chính xác từ danh sách
+- Reason phải ngắn gọn, cụ thể (1-2 câu)
+- Chỉ trả về JSON, không thêm text nào khác`;
 
     const messages = [
       {
@@ -366,12 +396,13 @@ app.post("/api/ai/recommend-friends", authenticateToken, async (req, res) => {
         (data.candidates[0] && JSON.stringify(data.candidates[0])) ||
         "";
 
-      // Trích xuất JSON an toàn
       try {
         const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error("No JSON found in AI response");
+        if (!jsonMatch) throw new Error("No JSON in AI response");
         const parsed = JSON.parse(jsonMatch[0]);
-        const recommendedIds = parsed.recommendations.map((r) => parseInt(r.id));
+        const recommendedIds = parsed.recommendations.map((r) =>
+          parseInt(r.id)
+        );
 
         const [detailedUsers] = await db.query(
           `SELECT id, username, nickname, avatar FROM users WHERE id IN (?)`,
@@ -379,12 +410,28 @@ app.post("/api/ai/recommend-friends", authenticateToken, async (req, res) => {
         );
 
         const finalRecommendations = detailedUsers.map((u) => {
-          const reason = parsed.recommendations.find((r) => parseInt(r.id) === u.id);
+          const reason = parsed.recommendations.find(
+            (r) => parseInt(r.id) === u.id
+          );
           return {
             ...u,
             reason: reason ? reason.reason : "Người dùng phù hợp",
           };
         });
+
+        // Save recommendations into ai_recommendations table (upsert)
+        try {
+          const now = new Date();
+          for (const rec of finalRecommendations) {
+            await db.query(
+              `INSERT INTO ai_recommendations (userId, recommendedUserId, criteria, reason, createdAt) VALUES (?, ?, ?, ?, ?) 
+               ON DUPLICATE KEY UPDATE reason = VALUES(reason), createdAt = VALUES(createdAt)`,
+              [userId, rec.id, criteria || null, rec.reason, now]
+            );
+          }
+        } catch (e) {
+          console.warn("ai_recommendions save failed:", e.message);
+        }
 
         res.json({
           recommendations: finalRecommendations,
@@ -404,39 +451,35 @@ app.post("/api/ai/recommend-friends", authenticateToken, async (req, res) => {
   }
 });
 
-// --- GEMINI AI LOGIC WITH CONTEXT ---
+// --- GEMINI AI LOGIC (USING axios so it works on Node 16) ---
 async function callGeminiAPI(messages) {
   if (!GEMINI_API_KEY) return null;
-  const modelName = "gemini-2.0-flash-exp";
+
+  // model and endpoint; use v1beta or v1 depending on your key permissions
+  const modelName = "gemini-2.0-flash";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
 
+  const payload = {
+    contents: messages.map((m) => ({ role: m.role, parts: m.parts })),
+    generationConfig: {
+      temperature: 0.7,
+      topP: 0.95,
+      maxOutputTokens: 1024,
+    },
+  };
+
   try {
-    // Build payload: ensure contents is an array of { role, parts }
-    const payload = {
-      contents: messages.map((m) => ({ role: m.role, parts: m.parts })),
-      generationConfig: {
-        temperature: 0.9,
-        topP: 0.95,
-        maxOutputTokens: 1024,
-      },
-    };
-
-    const response = await fetch(url, {
-      method: "POST",
+    const resp = await axios.post(url, payload, {
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      timeout: 30_000,
     });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      console.error(`❌ Lỗi từ Google API:`, data);
-      return null;
-    }
-
-    return data;
+    return resp.data;
   } catch (err) {
-    console.error(`❌ Lỗi khi gọi API:`, err.message);
+    if (err.response) {
+      console.error("Gemini API error:", err.response.status, err.response.data);
+    } else {
+      console.error("Gemini request failed:", err.message);
+    }
     return null;
   }
 }
@@ -452,7 +495,7 @@ async function handleAIChat(msg, uid, socket) {
   }
 
   try {
-    // Lấy lịch sử cuộc trò chuyện từ database (mới nhất trước rồi đảo lại)
+    // Load last MAX_HISTORY messages between user and AI
     const [chatHistory] = await db.query(
       `SELECT content, senderId, createdAt 
        FROM messages 
@@ -466,14 +509,19 @@ async function handleAIChat(msg, uid, socket) {
       role: "user",
       parts: [
         {
-          text: `Bạn là trợ lý ảo thông minh tên "Nexus AI" cho mạng xã hội Nexus. \nNhiệm vụ của bạn:\n- Trả lời bằng tiếng Việt thân thiện, tự nhiên\n- Hỗ trợ người dùng về các tính năng mạng xã hội\n- Gợi ý bạn bè, nhóm, hoạt động\n- Trò chuyện như một người bạn thật sự\n- Nhớ ngữ cảnh cuộc trò chuyện trước đó`,
+          text: `Bạn là trợ lý ảo thông minh tên "Nexus AI" cho mạng xã hội Nexus.
+Nhiệm vụ của bạn:
+- Trả lời bằng tiếng Việt thân thiện, tự nhiên
+- Hỗ trợ người dùng về các tính năng mạng xã hội
+- Gợi ý bạn bè, nhóm, hoạt động
+- Trò chuyện như một người bạn thật sự
+- Nhớ ngữ cảnh cuộc trò chuyện trước đó`,
         },
       ],
     };
 
     const messages = [systemPrompt];
 
-    // Thêm lịch sử chat (đảo ngược để đúng thứ tự thời gian)
     if (Array.isArray(chatHistory)) {
       chatHistory.reverse().forEach((h) => {
         if (h.senderId === AI_BOT_ID) {
@@ -484,17 +532,15 @@ async function handleAIChat(msg, uid, socket) {
       });
     }
 
-    // Thêm tin nhắn mới nhất từ user
     messages.push({ role: "user", parts: [{ text: msg }] });
 
-    console.log(`🤖 Đang xử lý câu hỏi từ user ${uid}:`, msg);
+    console.log(`🤖 Calling Gemini for user ${uid}...`);
 
     const data = await callGeminiAPI(messages);
 
-    if (data && data.candidates && data.candidates.length > 0) {
+    if (data && Array.isArray(data.candidates) && data.candidates.length > 0) {
       const candidate = data.candidates[0];
 
-      // Kiểm tra finishReason (safety, stop, length, etc.)
       if (candidate.finishReason === "SAFETY") {
         const reply =
           "Xin lỗi, tôi không thể trả lời câu hỏi này do vi phạm chính sách an toàn nội dung. Bạn có thể hỏi tôi điều gì khác không? 😊";
@@ -513,47 +559,50 @@ async function handleAIChat(msg, uid, socket) {
         return;
       }
 
-      // An toàn khi lấy text
-      const replyText = candidate?.content?.parts?.[0]?.text?.trim();
-      const reply = replyText ||
-        "Xin lỗi, tôi chưa hiểu ý bạn. Bạn có thể nói rõ hơn không? 😊";
+      const replyText =
+        candidate?.content?.parts?.[0]?.text?.trim() ||
+        "Xin lỗi, tôi chưa hiểu. Bạn có thể nói lại rõ hơn được không?";
 
-      // Lưu phản hồi vào database
+      // Save AI response to messages table
       const [r] = await db.query(
         "INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)",
-        [AI_BOT_ID, uid, reply]
+        [AI_BOT_ID, uid, replyText]
       );
 
-      // Gửi phản hồi cho user
       socket.emit("newMessage", {
         id: r.insertId,
         senderId: AI_BOT_ID,
-        content: reply,
+        content: replyText,
         createdAt: new Date(),
       });
 
-      console.log(`✅ AI phản hồi thành công cho user ${uid}`);
-    } else {
-      // Không có phản hồi hợp lệ
-      const errorMsg =
-        "Xin lỗi, tôi đang gặp chút vấn đề. Bạn có thể thử lại không? 🤔";
+      // Save chat log to ai_chat_logs table (non-blocking)
+      (async () => {
+        try {
+          await db.query(
+            "INSERT INTO ai_chat_logs (userId, userMessage, aiResponse, topic, sentiment) VALUES (?, ?, ?, ?, ?)",
+            [uid, msg, replyText, null, "neutral"]
+          );
+        } catch (e) {
+          console.warn("ai_chat_logs insert failed:", e.message);
+        }
+      })();
 
+      console.log(`✅ AI responded to user ${uid}`);
+    } else {
+      console.warn("⚠️ No valid AI candidate:", data);
       socket.emit("newMessage", {
         senderId: AI_BOT_ID,
-        content: errorMsg,
+        content:
+          "Hệ thống AI đang quá tải hoặc gặp lỗi. Vui lòng thử lại sau.",
         createdAt: new Date(),
       });
-
-      console.warn(`⚠️ Không nhận được phản hồi hợp lệ từ AI`, data);
     }
   } catch (e) {
-    console.error(`❌ Lỗi AI:`, e.message, e.stack);
-
-    const errorMsg = "Rất xin lỗi, có lỗi xảy ra. Bạn vui lòng thử lại sau nhé! 😅";
-
+    console.error("❌ AI handler error:", e);
     socket.emit("newMessage", {
       senderId: AI_BOT_ID,
-      content: errorMsg,
+      content: "Rất xin lỗi, có lỗi xảy ra bên server AI.",
       createdAt: new Date(),
     });
   }
@@ -576,7 +625,9 @@ io.on("connection", async (socket) => {
 
   const sendUserList = async () => {
     try {
-      const [users] = await db.query("SELECT id, username, nickname, avatar FROM users");
+      const [users] = await db.query(
+        "SELECT id, username, nickname, avatar FROM users"
+      );
       const list = users.map((u) => ({
         ...u,
         online: !!onlineUsers[u.id] || u.id === AI_BOT_ID,
@@ -591,43 +642,48 @@ io.on("connection", async (socket) => {
   socket.on("privateMessage", async (data) => {
     const { recipientId, content, ttl } = data;
     if (!recipientId || !content) return;
+    const userIdLocal = socket.user.userId || userId;
 
     if (recipientId === AI_BOT_ID) {
       await db.query(
         "INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)",
-        [userId, AI_BOT_ID, content]
+        [userIdLocal, AI_BOT_ID, content]
       );
       socket.emit("newMessage", {
-        senderId: userId,
+        senderId: userIdLocal,
         content: content,
         createdAt: new Date(),
       });
-      await handleAIChat(content, userId, socket);
+      await handleAIChat(content, userIdLocal, socket);
       return;
     }
 
-    const [r] = await db.query(
-      "INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)",
-      [userId, recipientId, content]
-    );
-    const msg = {
-      id: r.insertId,
-      senderId: userId,
-      content,
-      createdAt: new Date(),
-      ttl,
-    };
-    if (onlineUsers[recipientId])
-      io.to(onlineUsers[recipientId].socketId).emit("newMessage", msg);
-    socket.emit("newMessage", msg);
-    if (ttl)
-      setTimeout(async () => {
-        try {
-          await db.query("DELETE FROM messages WHERE id = ?", [r.insertId]);
-        } catch (e) {
-          console.error("TTL delete failed:", e);
-        }
-      }, ttl);
+    try {
+      const [r] = await db.query(
+        "INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)",
+        [userIdLocal, recipientId, content]
+      );
+      const msg = {
+        id: r.insertId,
+        senderId: userIdLocal,
+        content,
+        createdAt: new Date(),
+        ttl,
+      };
+      if (onlineUsers[recipientId])
+        io.to(onlineUsers[recipientId].socketId).emit("newMessage", msg);
+      socket.emit("newMessage", msg);
+      if (ttl)
+        setTimeout(async () => {
+          try {
+            await db.query("DELETE FROM messages WHERE id = ?", [r.insertId]);
+          } catch (e) {
+            console.error("TTL delete failed:", e);
+          }
+        }, ttl);
+    } catch (e) {
+      console.error("privateMessage insert error:", e);
+    }
   });
 
   socket.on("deleteConversation", async ({ recipientId }) => {
@@ -683,10 +739,15 @@ io.on("connection", async (socket) => {
     const rec = onlineUsers[d.recipientId];
     if (rec) {
       try {
-        const [u] = await db.query("SELECT username, nickname, avatar FROM users WHERE id=?", [userId]);
+        const [u] = await db.query(
+          "SELECT username, nickname, avatar FROM users WHERE id=?",
+          [userId]
+        );
         const avt =
           u[0].avatar ||
-          `https://ui-avatars.com/api/?name=${encodeURIComponent(u[0].nickname)}`;
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(
+            u[0].nickname
+          )}`;
         io.to(rec.socketId).emit("callOffer", {
           ...d,
           senderId: userId,
@@ -738,5 +799,6 @@ io.on("connection", async (socket) => {
 app.get("*", (req, res) =>
   res.sendFile(path.join(__dirname, "public", "index.html"))
 );
+
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
