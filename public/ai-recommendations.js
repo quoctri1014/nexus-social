@@ -191,9 +191,16 @@ class AIChat {
   }
 
   setupSocketListeners() {
+    // Xóa listener cũ để tránh duplicate
+    this.socket.off('newMessage');
+    
     this.socket.on('newMessage', (msg) => {
       console.log('📨 Received message:', msg);
-      this.displayMessage(msg);
+      
+      // Chỉ hiển thị tin nhắn từ AI, không hiển thị tin của chính mình
+      if (msg.senderId === AI_BOT_ID || msg.senderId === 1) {
+        this.displayMessage(msg);
+      }
     });
   }
 
@@ -203,7 +210,7 @@ class AIChat {
 
     console.log('📤 Sending message to AI:', content);
 
-    // Hiển thị tin nhắn người dùng
+    // Hiển thị tin nhắn người dùng ngay lập tức
     this.displayMessage({
       senderId: 'user',
       content: content,
