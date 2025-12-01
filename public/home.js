@@ -182,7 +182,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // --- RENDER FEED ---
   const feedContainer = document.getElementById("feed-container");
-  
+   
   const reactionMap = {
     like:  { icon: '👍', text: 'Thích',  class: 'liked' },
     love:  { icon: '❤️', text: 'Yêu thích', class: 'loved' },
@@ -381,7 +381,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         finally { sendCommentBtn.disabled = false; }
       });
   }
-  
+   
   window.deleteComment = async (commentId) => {
       if(!confirm("Bạn có chắc muốn xóa?")) return;
       try {
@@ -400,7 +400,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const postBtn = document.getElementById("post-btn");
   const postContentInput = document.getElementById("post-content-input");
   const postImageInput = document.getElementById("post-image-input");
-  
+   
   if(postBtn){
       postBtn.addEventListener("click", async () => {
         const content = postContentInput.value.trim();
@@ -444,7 +444,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
       });
   }
-  
+   
   if(postImageInput){
       postImageInput.addEventListener("change", (e) => {
         const file = e.target.files[0];
@@ -464,7 +464,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const hamburgerBtn = document.getElementById("hamburger-btn");
   const sidebarLeft = document.getElementById("sidebar-left");
   const overlay = document.getElementById("home-overlay");
-  
+   
   if(hamburgerBtn) {
       hamburgerBtn.addEventListener("click", () => {
         hamburgerBtn.classList.toggle("active");
@@ -518,7 +518,10 @@ document.addEventListener("DOMContentLoaded", async () => {
           const bio = document.getElementById("edit-bio").value;
           const location = document.getElementById("edit-location").value;
           const work = document.getElementById("edit-work").value;
+          
+          // --- ĐÃ SỬA: Lấy giá trị biến 'edu' từ input ---
           const edu = document.getElementById("edit-edu").value;
+          
           const avatarFile = document.getElementById("edit-avatar-input").files[0];
 
           saveProfileBtn.textContent = "Đang lưu...";
@@ -541,7 +544,8 @@ document.addEventListener("DOMContentLoaded", async () => {
               const res = await fetch("/api/profile/update", {
                   method: "POST",
                   headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                  body: JSON.stringify({ nickname, bio, location, work, education, avatar: avatarUrl })
+                  // --- ĐÃ SỬA: education: edu ---
+                  body: JSON.stringify({ nickname, bio, location, work, education: edu, avatar: avatarUrl })
               });
 
               if(res.ok) {
