@@ -1,29 +1,43 @@
 document.addEventListener("DOMContentLoaded", async () => {
   const token = localStorage.getItem("token");
   if (!token) {
-    // Nếu chưa đăng nhập thì đá về trang login
-    // window.location.href = "/index.html"; 
+    window.location.href = "/index.html"; // Chuyển hướng nếu chưa đăng nhập
+    return;
   }
 
   let currentUser = {};
 
-  // --- HELPER FUNCTIONS ---
+  // --- 1. CÁC HÀM TIỆN ÍCH (HELPER) ---
 
-  // Lấy Avatar (nếu không có thì dùng ảnh mặc định tạo theo tên)
+  // Lấy ảnh đại diện (Nếu không có ảnh thì tạo ảnh theo tên)
   function getAvatar(user) {
     if (user && user.avatar) return user.avatar;
     const name = user && (user.nickname || user.username) ? (user.nickname || user.username) : "User";
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=0D8ABC&color=fff&size=128`;
   }
 
-  // Format thời gian hiển thị
+  // Định dạng thời gian (Ví dụ: 10 phút trước, hoặc ngày tháng)
   function timeAgo(dateString) {
       if (!dateString) return '';
       const date = new Date(dateString);
-      return date.toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }); 
+      const now = new Date();
+      const seconds = Math.floor((now - date) / 1000);
+      
+      let interval = seconds / 31536000;
+      if (interval > 1) return Math.floor(interval) + " năm trước";
+      interval = seconds / 2592000;
+      if (interval > 1) return Math.floor(interval) + " tháng trước";
+      interval = seconds / 86400;
+      if (interval > 1) return Math.floor(interval) + " ngày trước";
+      interval = seconds / 3600;
+      if (interval > 1) return Math.floor(interval) + " giờ trước";
+      interval = seconds / 60;
+      if (interval > 1) return Math.floor(interval) + " phút trước";
+      
+      return "Vừa xong";
   }
 
-  // --- 1. TẢI THÔNG TIN PROFILE ---
+  // --- 2. TẢI THÔNG TIN CÁ NHÂN (PROFILE) ---
   async function loadMyProfile() {
     try {
       const res = await fetch("/api/me", {
@@ -34,15 +48,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         const avatarUrl = getAvatar(currentUser);
         const displayName = currentUser.nickname || currentUser.username;
 
-        // Cập nhật Avatar trên giao diện
-        const avatars = document.querySelectorAll("#nav-avatar, #sidebar-avatar, #story-my-avatar, #cp-avatar, #comment-my-avatar, #edit-avatar-preview");
-        avatars.forEach(img => img.src = avatarUrl);
+        // Cập nhật Avatar ở mọi nơi trên giao diện
+        const avatarElements = document.querySelectorAll("#nav-avatar, #sidebar-avatar, #story-my-avatar, #cp-avatar, #comment-my-avatar, #edit-avatar-preview");
+        avatarElements.forEach(img => img.src = avatarUrl);
 
+        // Cập nhật Tên
         if(document.getElementById("nav-username")) document.getElementById("nav-username").textContent = displayName;
         if(document.getElementById("sidebar-name")) document.getElementById("sidebar-name").textContent = displayName;
         if(document.getElementById("sidebar-bio")) document.getElementById("sidebar-bio").textContent = currentUser.bio || "Chưa có tiểu sử";
         
-        // Điền thông tin vào form sửa profile
+        // Điền dữ liệu vào Modal sửa Profile (nếu có)
         if(document.getElementById("edit-nickname")) document.getElementById("edit-nickname").value = displayName;
         if(document.getElementById("edit-bio")) document.getElementById("edit-bio").value = currentUser.bio || "";
         if(document.getElementById("edit-location")) document.getElementById("edit-location").value = currentUser.location || "";
@@ -54,7 +69,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  // --- 2. TẢI DANH SÁCH BÀI VIẾT ---
+  // --- 3. TẢI DANH SÁCH BÀI VIẾT (FEED) ---
   async function loadPosts() {
     try {
       const res = await fetch("/api/posts", {
@@ -63,16 +78,18 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (res.ok) {
         const posts = await res.json();
         renderFeed(posts);
+      } else {
+        console.error("Lỗi tải bài viết:", res.status);
       }
     } catch (e) {
-      console.error("Lỗi load posts:", e);
+      console.error("Lỗi kết nối:", e);
     }
   }
 
-  // Render HTML cho danh sách bài viết
+  // --- 4. RENDER GIAO DIỆN BÀI VIẾT ---
   const feedContainer = document.getElementById("feed-container");
   
-  // Cấu hình Icon cảm xúc
+  // Bản đồ Icon và Màu sắc cho Reaction
   const reactionMap = {
     like:  { icon: '👍', text: 'Thích',  class: 'liked' },
     love:  { icon: '❤️', text: 'Yêu thích', class: 'loved' },
@@ -84,6 +101,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   };
 
   function renderFeed(posts) {
+    if (!feedContainer) return;
     feedContainer.innerHTML = "";
     posts.forEach(post => {
       feedContainer.insertAdjacentHTML("beforeend", createPostHTML(post));
@@ -91,33 +109,34 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function createPostHTML(post) {
-    const authorName = post.nickname || post.username || "Người dùng"; // Sửa lại key theo server trả về
+    // Xử lý dữ liệu tác giả
+    const authorName = post.nickname || post.username || "Người dùng";
     const authorAvatar = getAvatar({ avatar: post.avatar, username: post.username, nickname: post.nickname });
     
-    // Server của bạn chưa trả về danh sách reaction chi tiết trong route /api/posts
-    // Nên tạm thời ta giả định hoặc hiển thị số reaction nếu có
-    // Nếu bạn muốn hiển thị số like chính xác, cần sửa query SQL trong server.js để COUNT
-    let totalReactions = post.reactionCount || 0; 
-    let totalComments = post.commentCount || 0; // Tương tự với comment
+    // Xử lý số liệu (Lấy từ SQL Server trả về)
+    // Lưu ý: Backend cần trả về reactionCount, commentCount, userReaction
+    const totalReactions = post.reactionCount || 0; 
+    const totalComments = post.commentCount || 0;
+    const userReaction = post.userReaction; // 'like', 'love', ... hoặc null
 
-    // Xác định trạng thái Like của user (Server cần trả về trường này nếu muốn hiện màu xanh)
+    // Xác định giao diện nút Like (Màu sắc & Icon)
     let btnIcon = reactionMap.default.icon;
     let btnText = reactionMap.default.text;
     let btnClass = reactionMap.default.class;
 
-    // Logic kiểm tra nếu user đã like (cần server hỗ trợ trả về 'userReaction')
-    if (post.userReaction && reactionMap[post.userReaction]) {
-        const r = reactionMap[post.userReaction];
-        btnIcon = r.icon;
-        btnText = r.text;
-        btnClass = r.class;
+    if (userReaction && reactionMap[userReaction]) {
+        btnIcon = reactionMap[userReaction].icon; // Nếu đã like thì hiện icon cảm xúc
+        btnText = reactionMap[userReaction].text;
+        btnClass = reactionMap[userReaction].class; // Class đổi màu chữ
     }
 
+    // HTML cho ảnh bài viết
     let mediaHtml = "";
     if (post.image) {
-      mediaHtml = `<img src="${post.image}" class="post-image" loading="lazy">`;
+      mediaHtml = `<img src="${post.image}" class="post-image" loading="lazy" alt="Post Image">`;
     }
 
+    // HTML hoàn chỉnh cho 1 bài viết
     return `
       <div class="post-card" id="post-${post.id}">
         <div class="post-header">
@@ -127,108 +146,127 @@ document.addEventListener("DOMContentLoaded", async () => {
             <span>${timeAgo(post.createdAt)}</span>
           </div>
         </div>
+        
         <div class="post-content">${post.content || ""}</div>
         ${mediaHtml}
         
         <div class="post-stats">
           <div class="reaction-icons-display">
-            <span>👍❤️ Tương tác</span> 
+            ${totalReactions > 0 ? `<span>👍❤️ ${totalReactions}</span>` : '<span>Hãy là người đầu tiên bày tỏ cảm xúc</span>'}
           </div>
-          <div class="stat-text" onclick="openCommentModal('${post.id}')">
-            Bình luận
+          <div class="stat-text" style="cursor:pointer" onclick="openCommentModal('${post.id}')">
+            ${totalComments} bình luận
           </div>
         </div>
 
         <div class="post-actions">
+          
           <div class="reaction-wrapper">
             <div class="reaction-popup-box">
-              <div class="reaction-icon" onclick="sendReaction('${post.id}', 'like')">👍</div>
-              <div class="reaction-icon" onclick="sendReaction('${post.id}', 'love')">❤️</div>
-              <div class="reaction-icon" onclick="sendReaction('${post.id}', 'haha')">😆</div>
-              <div class="reaction-icon" onclick="sendReaction('${post.id}', 'wow')">😮</div>
-              <div class="reaction-icon" onclick="sendReaction('${post.id}', 'sad')">😢</div>
-              <div class="reaction-icon" onclick="sendReaction('${post.id}', 'angry')">😡</div>
+              <div class="reaction-icon" onclick="handleSendReaction(${post.id}, 'like')">👍</div>
+              <div class="reaction-icon" onclick="handleSendReaction(${post.id}, 'love')">❤️</div>
+              <div class="reaction-icon" onclick="handleSendReaction(${post.id}, 'haha')">😆</div>
+              <div class="reaction-icon" onclick="handleSendReaction(${post.id}, 'wow')">😮</div>
+              <div class="reaction-icon" onclick="handleSendReaction(${post.id}, 'sad')">😢</div>
+              <div class="reaction-icon" onclick="handleSendReaction(${post.id}, 'angry')">😡</div>
             </div>
-            <button class="action-btn" onclick="toggleLike('${post.id}', '${post.userReaction}')">
+            
+            <button class="action-btn" onclick="handleToggleLike(${post.id}, '${userReaction || ''}')">
               <span class="action-icon">${btnIcon}</span>
               <span class="action-text ${btnClass}">${btnText}</span>
             </button>
           </div>
+
           <button class="action-btn" onclick="openCommentModal('${post.id}')">
             <i class="far fa-comment-alt"></i><span>Bình luận</span>
           </button>
-          <button class="action-btn"><i class="fas fa-share"></i><span>Chia sẻ</span></button>
+          
+          <button class="action-btn">
+            <i class="fas fa-share"></i><span>Chia sẻ</span>
+          </button>
         </div>
       </div>
     `;
   }
 
-  // --- 3. XỬ LÝ REACTION (FIX LỖI 404 TẠI ĐÂY) ---
-  window.sendReaction = async (postId, type) => {
+  // --- 5. LOGIC GỬI CẢM XÚC (REACTION) ---
+  
+  // Hàm này gọi khi click vào 1 icon cụ thể (Tim, Haha...)
+  window.handleSendReaction = async (postId, type) => {
+    // Dừng sự kiện nổi bọt để tránh click nhầm vào nút cha
+    if(event) event.stopPropagation();
+
     try {
-      // SỬA: Đưa postId vào URL thay vì body để khớp với server.js
-      // Server: app.post("/api/posts/:postId/react", ...)
+      // Gọi API: POST /api/posts/:id/react
       const res = await fetch(`/api/posts/${postId}/react`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ type }) // Chỉ gửi type trong body
+        headers: { 
+            "Content-Type": "application/json", 
+            Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ type }) // Gửi loại cảm xúc
       });
       
       if (res.ok) {
-        console.log("React thành công");
-        // Reload lại bài viết để cập nhật giao diện (cách đơn giản nhất)
-        // loadPosts(); 
-        // Hoặc chỉ hiển thị thông báo nhỏ
+        // Nếu thành công, tải lại danh sách bài viết để cập nhật số lượng và màu sắc
+        loadPosts(); 
       } else {
-          console.error("Lỗi react:", res.status);
+        console.error("Lỗi gửi cảm xúc:", res.status);
       }
     } catch (e) {
-      console.error(e);
+      console.error("Lỗi mạng:", e);
     }
   };
 
-  window.toggleLike = (postId, currentReaction) => {
-    const newType = (currentReaction && currentReaction !== 'null') ? 'like' : 'like'; // Tạm thời mặc định là like
-    sendReaction(postId, newType);
+  // Hàm này gọi khi click nút Like chính (Toggle)
+  window.handleToggleLike = (postId, currentReaction) => {
+    // Nếu đã like rồi thì ấn lần nữa sẽ like (hoặc backend bạn có thể xử lý xóa like nếu gửi trùng)
+    // Tạm thời logic: Nếu chưa có gì -> Like. Nếu có rồi -> vẫn gửi Like (để đổi lại icon like thường hoặc update)
+    const typeToSend = (currentReaction && currentReaction !== 'null' && currentReaction !== 'undefined') ? 'like' : 'like'; 
+    handleSendReaction(postId, typeToSend);
   };
 
-  // --- 4. XỬ LÝ COMMENT MODAL ---
+  // --- 6. LOGIC BÌNH LUẬN (COMMENT) ---
   const commentModal = document.getElementById("comment-modal");
   const commentsListEl = document.getElementById("comments-list");
   const commentInput = document.getElementById("comment-input");
   const sendCommentBtn = document.getElementById("send-comment-btn");
   let currentPostId = null;
 
+  // Mở Modal Bình Luận
   window.openCommentModal = async (postId) => {
     currentPostId = postId;
     if(commentModal) commentModal.classList.remove("hidden");
-    if(commentsListEl) commentsListEl.innerHTML = '<div class="center" style="padding:20px;">Đang tải...</div>';
+    if(commentsListEl) commentsListEl.innerHTML = '<div class="center" style="padding:20px; color: var(--text-sub)">Đang tải bình luận...</div>';
     
     try {
-        // Server: app.get("/api/posts/:postId/comments", ...)
+        // Gọi API lấy bình luận: GET /api/posts/:id/comments
         const res = await fetch(`/api/posts/${postId}/comments`, {
             headers: { Authorization: `Bearer ${token}` }
         });
         if(res.ok) {
             const comments = await res.json();
-            // Lấy tên tác giả bài viết (Cần fetch thêm info post nếu muốn chính xác)
-            document.getElementById("modal-post-author").textContent = "Người đăng"; 
+            // Lấy tên tác giả bài viết để hiển thị trên header modal
+            const postAuthorEl = document.getElementById("modal-post-author");
+            if(postAuthorEl) postAuthorEl.textContent = "người dùng"; // Có thể cải thiện nếu API trả về chi tiết post
             renderComments(comments || []);
         }
     } catch(e) {
-        if(commentsListEl) commentsListEl.innerHTML = '<div class="center">Lỗi tải bình luận</div>';
+        if(commentsListEl) commentsListEl.innerHTML = '<div class="center" style="color:red">Lỗi tải bình luận</div>';
     }
   };
 
+  // Render danh sách bình luận
   function renderComments(comments) {
     if(!comments || comments.length === 0) {
-        commentsListEl.innerHTML = "<p style='text-align:center; color:#65676b; margin-top:20px'>Chưa có bình luận nào.</p>";
+        commentsListEl.innerHTML = "<p style='text-align:center; color:var(--text-sub); margin-top:20px'>Chưa có bình luận nào. Hãy là người đầu tiên!</p>";
         return;
     }
     commentsListEl.innerHTML = comments.map(c => {
-        // Dữ liệu từ bảng post_comments join users
         const name = c.nickname || c.username || "Người dùng";
         const avatar = getAvatar({ avatar: c.avatar, username: c.username, nickname: c.nickname });
+        const canDelete = (currentUser.id === c.userId); // Kiểm tra quyền xóa
+
         return `
             <div class="comment-item">
                 <img src="${avatar}" alt="${name}">
@@ -240,12 +278,14 @@ document.addEventListener("DOMContentLoaded", async () => {
                     <div class="comment-footer">
                         <span>${timeAgo(c.createdAt)}</span>
                         <button>Thích</button>
-                        ${(currentUser.id === c.userId) ? `<button class="delete-comment-btn" onclick="deleteComment('${c.id}')">Xóa</button>` : ''}
+                        <button>Phản hồi</button>
+                        ${canDelete ? `<button class="delete-comment-btn" onclick="deleteComment('${c.id}')" style="color:red">Xóa</button>` : ''}
                     </div>
                 </div>
             </div>
         `;
     }).join('');
+    // Cuộn xuống cuối
     commentsListEl.scrollTop = commentsListEl.scrollHeight;
   }
 
@@ -253,18 +293,19 @@ document.addEventListener("DOMContentLoaded", async () => {
   const closeCommentBtn = document.getElementById("close-comment-modal-x");
   if(closeCommentBtn){
       closeCommentBtn.addEventListener("click", () => {
-        commentModal.classList.add("hidden");
+        if(commentModal) commentModal.classList.add("hidden");
         currentPostId = null;
       });
   }
 
-  // Xử lý nút Gửi Comment
+  // Bật/tắt nút gửi khi nhập liệu
   if(commentInput){
       commentInput.addEventListener("input", () => {
-        sendCommentBtn.disabled = commentInput.value.trim() === "";
+        if(sendCommentBtn) sendCommentBtn.disabled = commentInput.value.trim() === "";
       });
   }
 
+  // Gửi Bình Luận
   if(sendCommentBtn){
       sendCommentBtn.addEventListener("click", async () => {
         const content = commentInput.value.trim();
@@ -272,8 +313,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         
         sendCommentBtn.disabled = true;
         try {
-            // SỬA: Đưa postId vào URL để khớp server.js
-            // Server: app.post("/api/posts/:postId/comments", ...)
+            // API Gửi: POST /api/posts/:id/comments
             const res = await fetch(`/api/posts/${currentPostId}/comments`, {
                 method: "POST",
                 headers: { 
@@ -284,9 +324,12 @@ document.addEventListener("DOMContentLoaded", async () => {
             });
             if(res.ok) {
                 commentInput.value = "";
-                openCommentModal(currentPostId); // Reload lại danh sách comment
+                // Tải lại comment ngay lập tức
+                openCommentModal(currentPostId); 
+                // Tải lại feed để cập nhật số lượng comment bên ngoài
+                loadPosts(); 
             } else {
-                alert("Lỗi gửi bình luận");
+                alert("Gửi bình luận thất bại");
             }
         } catch(e) {
             console.error(e);
@@ -298,19 +341,21 @@ document.addEventListener("DOMContentLoaded", async () => {
   
   // Xóa bình luận
   window.deleteComment = async (commentId) => {
-      if(!confirm("Bạn có chắc muốn xóa?")) return;
+      if(!confirm("Bạn có chắc muốn xóa bình luận này?")) return;
       try {
           const res = await fetch(`/api/comments/${commentId}`, {
               method: "DELETE",
               headers: { Authorization: `Bearer ${token}` }
           });
           if(res.ok) {
-              openCommentModal(currentPostId); // Reload lại modal
+              // Reload modal để mất dòng comment vừa xóa
+              openCommentModal(currentPostId);
+              loadPosts(); // Update số lượng
           }
       } catch(e) { console.error(e); }
-  }
+  };
 
-  // --- 5. ĐĂNG BÀI VIẾT MỚI ---
+  // --- 7. ĐĂNG BÀI VIẾT MỚI ---
   const postBtn = document.getElementById("post-btn");
   const postContentInput = document.getElementById("post-content-input");
   const postImageInput = document.getElementById("post-image-input");
@@ -327,6 +372,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         try {
             let imageUrl = "";
+            // Nếu có ảnh -> Upload trước
             if (file) {
                 const fd = new FormData();
                 fd.append("files", file);
@@ -339,6 +385,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 imageUrl = data[0]?.url || ""; 
             }
 
+            // Gửi dữ liệu bài viết
             const res = await fetch("/api/posts/create", {
                 method: "POST",
                 headers: {
@@ -349,14 +396,17 @@ document.addEventListener("DOMContentLoaded", async () => {
             });
 
             if (res.ok) {
+                // Reset form
                 postContentInput.value = "";
                 postImageInput.value = "";
                 const previewArea = document.getElementById("post-preview-area");
                 if(previewArea) previewArea.classList.add("hidden");
+                
+                // Tải lại feed
                 loadPosts(); 
             }
         } catch (e) {
-            alert("Lỗi đăng bài");
+            alert("Lỗi đăng bài: " + e.message);
         } finally {
             postBtn.textContent = "Đăng";
             postBtn.disabled = false;
@@ -364,7 +414,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
   }
   
-  // Preview ảnh khi chọn file đăng bài
+  // Xem trước ảnh khi chọn file
   if(postImageInput){
       postImageInput.addEventListener("change", (e) => {
         const file = e.target.files[0];
@@ -383,7 +433,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
   }
 
-  // --- HAMBURGER MENU & THEME ---
+  // --- 8. UI CHUNG (HAMBURGER, THEME, LOGOUT) ---
+  
+  // Mobile Menu
   const hamburgerBtn = document.getElementById("hamburger-btn");
   const sidebarLeft = document.getElementById("sidebar-left");
   const overlay = document.getElementById("home-overlay");
@@ -391,19 +443,20 @@ document.addEventListener("DOMContentLoaded", async () => {
   if(hamburgerBtn) {
       hamburgerBtn.addEventListener("click", () => {
         hamburgerBtn.classList.toggle("active");
-        sidebarLeft.classList.toggle("active");
-        overlay.classList.toggle("active");
+        if(sidebarLeft) sidebarLeft.classList.toggle("active");
+        if(overlay) overlay.classList.toggle("active");
       });
   }
   if(overlay) {
       overlay.addEventListener("click", () => {
-        hamburgerBtn.classList.remove("active");
-        sidebarLeft.classList.remove("active");
-        overlay.classList.remove("active");
+        if(hamburgerBtn) hamburgerBtn.classList.remove("active");
+        if(sidebarLeft) sidebarLeft.classList.remove("active");
+        if(overlay) overlay.classList.remove("active");
         if(commentModal) commentModal.classList.add("hidden");
       });
   }
 
+  // Dark/Light Mode
   const themeToggle = document.getElementById("theme-toggle");
   if(themeToggle) {
       themeToggle.addEventListener("click", () => {
@@ -413,10 +466,11 @@ document.addEventListener("DOMContentLoaded", async () => {
           localStorage.setItem("theme", newTheme);
       });
   }
+  // Load theme đã lưu
   const savedTheme = localStorage.getItem("theme") || "light";
   document.body.setAttribute("data-theme", savedTheme);
 
-  // Profile Modal Logic
+  // Profile Modal (Mở/Đóng)
   const profileModal = document.getElementById("profile-modal");
   const openProfileBtn = document.getElementById("open-profile-btn");
   const closeProfileX = document.getElementById("close-modal-x");
@@ -435,6 +489,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   if(closeProfileX) closeProfileX.addEventListener("click", () => toggleProfileModal(false));
   if(cancelProfileBtn) cancelProfileBtn.addEventListener("click", () => toggleProfileModal(false));
 
+  // Lưu Profile
   if(saveProfileBtn) {
       saveProfileBtn.addEventListener("click", async () => {
           const nickname = document.getElementById("edit-nickname").value;
@@ -482,7 +537,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
   }
 
-  // --- INIT ---
+  // --- 9. KHỞI CHẠY LẦN ĐẦU ---
   await loadMyProfile();
   await loadPosts();
 });
+
+// Hàm Logout toàn cục
+function logout() {
+    localStorage.removeItem("token");
+    window.location.href = "/index.html";
+}
