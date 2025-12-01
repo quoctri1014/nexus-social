@@ -33,6 +33,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // ✅ LƯU THÔNG TIN CUỘC GỌI ĐẾN (FIX CHÍNH)
   let pendingOffer = null;
   let pendingIsVideo = false;
+  let isProcessingCall = false; // ✅ Chặn duplicate calls
 
   // Cấu hình STUN Server
   const rtcConfig = {
@@ -146,22 +147,34 @@ document.addEventListener("DOMContentLoaded", () => {
   window.socket.on("callOffer", ({ senderId, senderName, senderAvatar, offer, isVideo }) => {
     console.log("📞 Cuộc gọi đến từ:", senderName, "Offer:", offer);
     
-    // ✅ Kiểm tra offer hợp lệ
-    if (!offer || !offer.sdp) {
-      console.error("❌ Offer không hợp lệ:", offer);
-      window.socket.emit("callReject", { callerId: senderId, reason: "ERROR" });
+    // ✅ BỎ QUA NẾU ĐANG XỬ LÝ CUỘC GỌI (Chặn duplicate)
+    if (isProcessingCall) {
+      console.log("⚠️ Đã có cuộc gọi đang xử lý, bỏ qua offer này");
       return;
     }
     
-    if (currentCallerId || currentRecipientId) {
+    // ✅ KIỂM TRA OFFER HỢP LỆ - Bỏ qua offer rỗng/undefined
+    if (!offer || typeof offer !== 'object' || !offer.sdp || !offer.type) {
+      console.warn("⚠️ Offer không hợp lệ, chờ offer tiếp theo...");
+      return; // Không reject, chỉ bỏ qua và chờ offer hợp lệ
+    }
+    
+    // ✅ KIỂM TRA ĐANG BẬN
+    if (currentCallerId || currentRecipientId || peerConnection) {
+      console.log("📵 Đang bận, từ chối cuộc gọi");
       window.socket.emit("callReject", { callerId: senderId, reason: "BUSY" });
       return;
     }
     
-    // ✅ LƯU THÔNG TIN CUỘC GỌI (FIX CHÍNH)
+    // ✅ ĐÁNH DẤU ĐANG XỬ LÝ
+    isProcessingCall = true;
+    
+    // ✅ LƯU THÔNG TIN CUỘC GỌI
     currentCallerId = senderId;
     pendingOffer = offer;
     pendingIsVideo = isVideo;
+    
+    console.log("✅ Đã lưu offer hợp lệ:", offer.type, offer.sdp.substring(0, 50) + "...");
     
     // Hiển thị popup
     incomingName.textContent = senderName || "Người dùng Nexus";
@@ -177,8 +190,7 @@ document.addEventListener("DOMContentLoaded", () => {
         stopRingtone();
         incomingModal.classList.add("hidden");
         window.socket.emit("callMissed", { callerId: senderId });
-        currentCallerId = null;
-        pendingOffer = null;
+        resetCallState();
       }
     }, 30000);
   });
@@ -187,8 +199,8 @@ document.addEventListener("DOMContentLoaded", () => {
   if (btnAccept) {
     btnAccept.onclick = async () => {
       if (!pendingOffer || !currentCallerId) {
-        alert("❌ Lỗi: Thông tin cuộc gọi bị mất.");
-        hangUp();
+        alert("❌ Lỗi: Thông tin cuộc gọi bị mất. Vui lòng thử lại.");
+        resetCallState();
         return;
       }
       
@@ -197,6 +209,7 @@ document.addEventListener("DOMContentLoaded", () => {
       incomingModal.classList.add("hidden");
       
       try {
+        console.log("🎤 Đang yêu cầu quyền Camera/Mic...");
         localStream = await navigator.mediaDevices.getUserMedia({ 
           video: pendingIsVideo, 
           audio: true 
@@ -205,9 +218,11 @@ document.addEventListener("DOMContentLoaded", () => {
         localVideo.muted = true;
         callWindow.classList.remove("hidden");
         
+        console.log("📡 Tạo PeerConnection...");
         peerConnection = createPeerConnection(localStream);
         
         // ✅ Sử dụng pendingOffer đã lưu
+        console.log("📥 Đang set RemoteDescription với offer:", pendingOffer.type);
         const remoteDesc = new RTCSessionDescription({
           type: 'offer',
           sdp: pendingOffer.sdp
@@ -215,9 +230,11 @@ document.addEventListener("DOMContentLoaded", () => {
         
         await peerConnection.setRemoteDescription(remoteDesc);
         
+        console.log("📤 Tạo Answer...");
         const answer = await peerConnection.createAnswer();
         await peerConnection.setLocalDescription(answer);
         
+        console.log("✅ Gửi Answer về người gọi");
         window.socket.emit("callAnswer", { 
           recipientId: currentCallerId, 
           answer: {
@@ -228,11 +245,13 @@ document.addEventListener("DOMContentLoaded", () => {
         
         // ✅ Xóa thông tin tạm sau khi xử lý xong
         pendingOffer = null;
+        isProcessingCall = false; // ✅ Mở khóa để nhận cuộc gọi mới
 
       } catch (e) {
-        console.error("Lỗi Accept Call:", e);
+        console.error("❌ Lỗi Accept Call:", e);
         handleMediaError(e);
         window.socket.emit("callReject", { callerId: currentCallerId, reason: "ERROR" });
+        resetCallState();
       }
     };
   }
@@ -246,8 +265,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (currentCallerId) {
         window.socket.emit("callReject", { callerId: currentCallerId, reason: "REJECT" });
       }
-      currentCallerId = null;
-      pendingOffer = null;
+      resetCallState();
     };
   }
 
@@ -262,9 +280,12 @@ document.addEventListener("DOMContentLoaded", () => {
           sdp: answer.sdp
         });
         await peerConnection.setRemoteDescription(remoteDesc);
+        console.log("✅ Đã set RemoteDescription (Answer)");
       } catch (e) { 
-        console.error("Lỗi setRemoteDescription Answer:", e); 
+        console.error("❌ Lỗi setRemoteDescription Answer:", e); 
       }
+    } else {
+      console.warn("⚠️ Answer không hợp lệ hoặc peerConnection chưa sẵn sàng");
     }
   });
 
@@ -316,9 +337,16 @@ document.addEventListener("DOMContentLoaded", () => {
       window.socket.emit("callEnd", { recipientId: targetId });
     }
     
+    resetCallState();
+  };
+
+  // ✅ HÀM RESET STATE (Tách riêng để tái sử dụng)
+  const resetCallState = () => {
     currentRecipientId = null;
     currentCallerId = null;
-    pendingOffer = null; // ✅ Reset pendingOffer
+    pendingOffer = null;
+    isProcessingCall = false; // ✅ Mở khóa
+    console.log("🔄 Đã reset call state");
   };
 
   // --- EVENT LISTENERS ---
