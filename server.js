@@ -71,9 +71,15 @@ if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY) {
   upload = multer({ storage });
 }
 
+// Tìm đoạn này trong server.js
 const transporter = nodemailer.createTransport({
   service: "gmail",
-  auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+  auth: {
+    // Thay bằng email thật của bạn
+    user: "quoctri1014@gmail.com",
+    // Thay bằng MẬT KHẨU ỨNG DỤNG 16 ký tự (không phải pass đăng nhập)
+    pass: "epuf saby mccl gnod",
+  },
 });
 const otpStore = new Map();
 
@@ -302,16 +308,43 @@ app.post("/api/profile/update", authenticateToken, async (req, res) => {
   }
 });
 
-// ============================================
-// POSTS & INTERACTIONS (ĐÃ CHỈNH SỬA)
-// ============================================
+app.post("/api/posts/create", authenticateToken, async (req, res) => {
+  const { content, image } = req.body;
+  const userId = req.user.userId;
+  if (!content && !image)
+    return res.status(400).json({ message: "Content required" });
+  try {
+    const [result] = await db.query(
+      "INSERT INTO posts (userId, content, image) VALUES (?, ?, ?)",
+      [userId, content, image]
+    );
+    res.status(201).json({ message: "OK", postId: result.insertId });
+  } catch (e) {
+    res.status(500).json({ message: "Error" });
+  }
+});
 
-// 1. GET POSTS (Đã xóa bản trùng, thêm đếm like/comment)
+app.post("/api/posts/:postId/react", authenticateToken, async (req, res) => {
+  const { type } = req.body;
+  const postId = req.params.postId;
+  const userId = req.user.userId;
+  try {
+    await db.query(
+      "INSERT INTO post_reactions (postId, userId, type) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE type=?",
+      [postId, userId, type, type]
+    );
+    res.json({ message: "OK" });
+  } catch (e) {
+    res.status(500).json({ message: "Error" });
+  }
+});
+
+// --- POSTS ---
 app.get("/api/posts", authenticateToken, async (req, res) => {
   try {
     const currentUserId = req.user.userId;
 
-    // Query lấy bài viết + số like + số comment + trạng thái like của user
+    // Câu lệnh SQL "thần thánh" để lấy bài viết + đếm like + đếm comment + check user đã like chưa
     const query = `
       SELECT 
         p.*, 
@@ -333,53 +366,6 @@ app.get("/api/posts", authenticateToken, async (req, res) => {
   }
 });
 
-// 2. CREATE POST
-app.post("/api/posts/create", authenticateToken, async (req, res) => {
-  const { content, image } = req.body;
-  const userId = req.user.userId;
-  if (!content && !image)
-    return res.status(400).json({ message: "Content required" });
-  try {
-    const [result] = await db.query(
-      "INSERT INTO posts (userId, content, image) VALUES (?, ?, ?)",
-      [userId, content, image]
-    );
-    res.status(201).json({ message: "OK", postId: result.insertId });
-  } catch (e) {
-    res.status(500).json({ message: "Error" });
-  }
-});
-
-// 3. REACT POST
-app.post("/api/posts/:postId/react", authenticateToken, async (req, res) => {
-  const { type } = req.body;
-  const postId = req.params.postId;
-  const userId = req.user.userId;
-  try {
-    await db.query(
-      "INSERT INTO post_reactions (postId, userId, type) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE type=?",
-      [postId, userId, type, type]
-    );
-    res.json({ message: "OK" });
-  } catch (e) {
-    res.status(500).json({ message: "Error" });
-  }
-});
-
-// 4. GET COMMENTS (Đã thêm API này - Quan trọng cho Modal)
-app.get("/api/posts/:postId/comments", authenticateToken, async (req, res) => {
-    try {
-      const [comments] = await db.query(
-        "SELECT pc.*, u.username, u.nickname, u.avatar FROM post_comments pc JOIN users u ON pc.userId = u.id WHERE pc.postId=? ORDER BY pc.createdAt ASC",
-        [req.params.postId]
-      );
-      res.json(comments);
-    } catch (e) {
-      res.status(500).json({ message: "Error" });
-    }
-});
-
-// 5. POST COMMENT
 app.post("/api/posts/:postId/comments", authenticateToken, async (req, res) => {
   const { content } = req.body;
   const postId = req.params.postId;
@@ -396,7 +382,6 @@ app.post("/api/posts/:postId/comments", authenticateToken, async (req, res) => {
   }
 });
 
-// 6. DELETE COMMENT
 app.delete("/api/comments/:commentId", authenticateToken, async (req, res) => {
   const commentId = req.params.commentId;
   const userId = req.user.userId;
