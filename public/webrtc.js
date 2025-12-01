@@ -1,7 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
   if (!window.socket || !window.location.pathname.endsWith("/chat.html")) return;
 
-  // 1. Ẩn modal ngay lập tức để tránh lỗi giao diện
+  // 1. Ẩn modal ngay lập tức
   const incomingModal = document.getElementById("incoming-call-modal");
   const callWindow = document.getElementById("call-window");
   if (incomingModal) incomingModal.classList.add("hidden");
@@ -29,8 +29,12 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentCallerId = null;
   let currentRecipientId = null;
   let callTimeout = null;
+  
+  // ✅ LƯU THÔNG TIN CUỘC GỌI ĐẾN (FIX CHÍNH)
+  let pendingOffer = null;
+  let pendingIsVideo = false;
 
-  // Cấu hình STUN Server (Quan trọng để kết nối mạng khác nhau)
+  // Cấu hình STUN Server
   const rtcConfig = {
     iceServers: [
       { urls: "stun:stun.l.google.com:19302" },
@@ -43,6 +47,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (ringtone) {
       try {
         ringtone.currentTime = 0;
+        ringtone.loop = true; // ✅ Thêm loop để nhạc chuông lặp lại
         await ringtone.play();
       } catch (err) {
         console.warn("Không thể phát nhạc (Cần tương tác):", err);
@@ -54,25 +59,26 @@ document.addEventListener("DOMContentLoaded", () => {
     if (ringtone) {
       ringtone.pause();
       ringtone.currentTime = 0;
+      ringtone.loop = false;
     }
   };
 
   const handleMediaError = (err) => {
-      console.error("Lỗi Media:", err);
-      let msg = "Lỗi kết nối.";
-      
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-          msg = "⚠️ Bạn đã chặn quyền Camera/Mic. Hãy bấm vào ổ khóa 🔒 trên thanh địa chỉ để mở lại.";
-      } 
-      else if (err.name === 'NotFoundError') {
-          msg = "❌ Không tìm thấy Camera/Mic.";
-      }
-      else if (err.message && err.message.includes("type")) {
-          msg = "⚠️ Lỗi dữ liệu cuộc gọi. Vui lòng tải lại trang và thử lại.";
-      }
+    console.error("Lỗi Media:", err);
+    let msg = "Lỗi kết nối.";
+    
+    if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+      msg = "⚠️ Bạn đã chặn quyền Camera/Mic. Hãy bấm vào ổ khóa 🔒 trên thanh địa chỉ để mở lại.";
+    } 
+    else if (err.name === 'NotFoundError') {
+      msg = "❌ Không tìm thấy Camera/Mic.";
+    }
+    else if (err.message && err.message.includes("sdp")) {
+      msg = "⚠️ Lỗi dữ liệu cuộc gọi. Vui lòng thử lại.";
+    }
 
-      alert(msg);
-      hangUp();
+    alert(msg);
+    hangUp();
   };
 
   const createPeerConnection = (stream) => {
@@ -88,15 +94,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
     pc.ontrack = (e) => {
       if (remoteVideo.srcObject !== e.streams[0]) {
-          remoteVideo.srcObject = e.streams[0];
+        remoteVideo.srcObject = e.streams[0];
       }
     };
 
     pc.onconnectionstatechange = () => {
-        if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
-            hangUp(false);
-        }
+      console.log("Connection state:", pc.connectionState);
+      if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
+        hangUp(false);
+      }
     };
+    
     return pc;
   };
 
@@ -119,32 +127,43 @@ document.addEventListener("DOMContentLoaded", () => {
       const offer = await peerConnection.createOffer();
       await peerConnection.setLocalDescription(offer);
 
-      // Gửi Offer chuẩn JSON
-      const offerPayload = { 
-          type: offer.type, 
-          sdp: offer.sdp 
-      };
-
+      // ✅ Gửi offer đầy đủ
       window.socket.emit("callOffer", { 
-          recipientId: currentRecipientId, 
-          offer: offerPayload, 
-          isVideo 
+        recipientId: currentRecipientId, 
+        offer: {
+          type: offer.type,
+          sdp: offer.sdp
+        }, 
+        isVideo 
       });
 
-    } catch (err) { handleMediaError(err); }
+    } catch (err) { 
+      handleMediaError(err); 
+    }
   };
 
   // --- XỬ LÝ KHI CÓ CUỘC GỌI ĐẾN (Người nhận) ---
   window.socket.on("callOffer", ({ senderId, senderName, senderAvatar, offer, isVideo }) => {
+    console.log("📞 Cuộc gọi đến từ:", senderName, "Offer:", offer);
+    
+    // ✅ Kiểm tra offer hợp lệ
+    if (!offer || !offer.sdp) {
+      console.error("❌ Offer không hợp lệ:", offer);
+      window.socket.emit("callReject", { callerId: senderId, reason: "ERROR" });
+      return;
+    }
+    
     if (currentCallerId || currentRecipientId) {
       window.socket.emit("callReject", { callerId: senderId, reason: "BUSY" });
       return;
     }
     
-    // Lưu thông tin người gọi
+    // ✅ LƯU THÔNG TIN CUỘC GỌI (FIX CHÍNH)
     currentCallerId = senderId;
+    pendingOffer = offer;
+    pendingIsVideo = isVideo;
     
-    // Hiển thị Popup
+    // Hiển thị popup
     incomingName.textContent = senderName || "Người dùng Nexus";
     incomingAvatar.src = senderAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(senderName||"User")}`;
     incomingModal.classList.remove("hidden");
@@ -154,100 +173,138 @@ document.addEventListener("DOMContentLoaded", () => {
     // Timeout 30s
     if (callTimeout) clearTimeout(callTimeout);
     callTimeout = setTimeout(() => {
-        if (!peerConnection) {
-            stopRingtone();
-            incomingModal.classList.add("hidden");
-            window.socket.emit("callMissed", { callerId: senderId });
-            currentCallerId = null;
-        }
-    }, 30000);
-
-    // --- NÚT TRẢ LỜI (Đã sửa lỗi Type Null) ---
-    btnAccept.onclick = async () => {
-        clearTimeout(callTimeout);
+      if (!peerConnection) {
         stopRingtone();
         incomingModal.classList.add("hidden");
-        
-        try {
-            localStream = await navigator.mediaDevices.getUserMedia({ video: isVideo, audio: true });
-            localVideo.srcObject = localStream;
-            localVideo.muted = true;
-            callWindow.classList.remove("hidden");
-            
-            peerConnection = createPeerConnection(localStream);
-            
-            // === [FIX QUAN TRỌNG] ÉP KIỂU OFFER ===
-            // Dù offer gửi đến có bị mất type, ta vẫn ép nó là 'offer'
-            const remoteDesc = new RTCSessionDescription({
-                type: 'offer', 
-                sdp: offer.sdp || offer // Phòng trường hợp offer là chuỗi hoặc object
-            });
-            
-            await peerConnection.setRemoteDescription(remoteDesc);
-            
-            const answer = await peerConnection.createAnswer();
-            await peerConnection.setLocalDescription(answer);
-            
-            const answerPayload = { type: answer.type, sdp: answer.sdp };
-            window.socket.emit("callAnswer", { recipientId: senderId, answer: answerPayload });
-
-        } catch (e) {
-            console.error("Lỗi Accept Call:", e);
-            handleMediaError(e);
-            window.socket.emit("callReject", { callerId: senderId, reason: "ERROR" });
-        }
-    };
-
-    // Nút từ chối
-    btnReject.onclick = () => {
-        clearTimeout(callTimeout);
-        stopRingtone();
-        incomingModal.classList.add("hidden");
-        window.socket.emit("callReject", { callerId: senderId, reason: "REJECT" });
+        window.socket.emit("callMissed", { callerId: senderId });
         currentCallerId = null;
-    };
+        pendingOffer = null;
+      }
+    }, 30000);
   });
 
+  // ✅ GẮN EVENT LISTENER 1 LẦN DUY NHẤT (FIX CHÍNH)
+  if (btnAccept) {
+    btnAccept.onclick = async () => {
+      if (!pendingOffer || !currentCallerId) {
+        alert("❌ Lỗi: Thông tin cuộc gọi bị mất.");
+        hangUp();
+        return;
+      }
+      
+      clearTimeout(callTimeout);
+      stopRingtone();
+      incomingModal.classList.add("hidden");
+      
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ 
+          video: pendingIsVideo, 
+          audio: true 
+        });
+        localVideo.srcObject = localStream;
+        localVideo.muted = true;
+        callWindow.classList.remove("hidden");
+        
+        peerConnection = createPeerConnection(localStream);
+        
+        // ✅ Sử dụng pendingOffer đã lưu
+        const remoteDesc = new RTCSessionDescription({
+          type: 'offer',
+          sdp: pendingOffer.sdp
+        });
+        
+        await peerConnection.setRemoteDescription(remoteDesc);
+        
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        
+        window.socket.emit("callAnswer", { 
+          recipientId: currentCallerId, 
+          answer: {
+            type: answer.type,
+            sdp: answer.sdp
+          }
+        });
+        
+        // ✅ Xóa thông tin tạm sau khi xử lý xong
+        pendingOffer = null;
+
+      } catch (e) {
+        console.error("Lỗi Accept Call:", e);
+        handleMediaError(e);
+        window.socket.emit("callReject", { callerId: currentCallerId, reason: "ERROR" });
+      }
+    };
+  }
+
+  // ✅ GẮN EVENT LISTENER 1 LẦN DUY NHẤT
+  if (btnReject) {
+    btnReject.onclick = () => {
+      clearTimeout(callTimeout);
+      stopRingtone();
+      incomingModal.classList.add("hidden");
+      if (currentCallerId) {
+        window.socket.emit("callReject", { callerId: currentCallerId, reason: "REJECT" });
+      }
+      currentCallerId = null;
+      pendingOffer = null;
+    };
+  }
+
+  // --- XỬ LÝ NHẬN ANSWER ---
   window.socket.on("callAnswer", async ({ answer }) => {
-    if (peerConnection && answer) {
-        try {
-            // Ép kiểu answer
-            const remoteDesc = new RTCSessionDescription({
-                type: 'answer',
-                sdp: answer.sdp || answer
-            });
-            await peerConnection.setRemoteDescription(remoteDesc);
-        } catch (e) { console.error("Lỗi setRemoteDescription Answer:", e); }
+    console.log("📱 Nhận answer:", answer);
+    
+    if (peerConnection && answer && answer.sdp) {
+      try {
+        const remoteDesc = new RTCSessionDescription({
+          type: 'answer',
+          sdp: answer.sdp
+        });
+        await peerConnection.setRemoteDescription(remoteDesc);
+      } catch (e) { 
+        console.error("Lỗi setRemoteDescription Answer:", e); 
+      }
     }
   });
 
+  // --- XỬ LÝ ICE CANDIDATE ---
   window.socket.on("receiveICE", async ({ candidate }) => {
     if (peerConnection && candidate) {
-        try {
-            await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-        } catch (e) { console.error("Lỗi ICE:", e); }
+      try {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (e) { 
+        console.error("Lỗi ICE:", e); 
+      }
     }
   });
   
+  // --- XỬ LÝ KẾT THÚC CUỘC GỌI ---
   window.socket.on("callEnd", () => { hangUp(false); });
-  window.socket.on("callMissed", () => { alert("Người kia không bắt máy."); hangUp(false); });
-  window.socket.on("callReject", ({ reason }) => { 
-      stopRingtone(); 
-      alert(reason==="BUSY" ? "Người dùng đang bận." : "Cuộc gọi bị từ chối."); 
-      hangUp(false); 
+  window.socket.on("callMissed", () => { 
+    alert("Người kia không bắt máy."); 
+    hangUp(false); 
   });
-  window.socket.on("userOffline", () => { alert("Người dùng đang Offline."); hangUp(false); });
+  window.socket.on("callReject", ({ reason }) => { 
+    stopRingtone(); 
+    alert(reason==="BUSY" ? "Người dùng đang bận." : "Cuộc gọi bị từ chối."); 
+    hangUp(false); 
+  });
+  window.socket.on("userOffline", () => { 
+    alert("Người dùng đang Offline."); 
+    hangUp(false); 
+  });
 
   const hangUp = (emitEvent = true) => {
     stopRingtone();
     if (callTimeout) clearTimeout(callTimeout);
     
     if (localStream) {
-        localStream.getTracks().forEach((t) => t.stop());
+      localStream.getTracks().forEach((t) => t.stop());
     }
     if (peerConnection) {
-        peerConnection.close();
-        peerConnection = null;
+      peerConnection.close();
+      peerConnection = null;
     }
     
     localStream = null;
@@ -256,13 +313,15 @@ document.addEventListener("DOMContentLoaded", () => {
     
     const targetId = currentRecipientId || currentCallerId;
     if (emitEvent && targetId) {
-        window.socket.emit("callEnd", { recipientId: targetId });
+      window.socket.emit("callEnd", { recipientId: targetId });
     }
+    
     currentRecipientId = null;
     currentCallerId = null;
+    pendingOffer = null; // ✅ Reset pendingOffer
   };
 
-  // Event Listeners
+  // --- EVENT LISTENERS ---
   if (callButton) callButton.addEventListener("click", () => startCall(false));
   if (videoCallButton) videoCallButton.addEventListener("click", () => startCall(true));
   if (endCallButton) endCallButton.addEventListener("click", () => hangUp(true));
@@ -271,8 +330,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (localStream) {
       const t = localStream.getAudioTracks()[0];
       if (t) { 
-          t.enabled = !t.enabled; 
-          toggleMic.style.background = t.enabled ? "rgba(255,255,255,0.2)" : "#ef4444"; 
+        t.enabled = !t.enabled; 
+        toggleMic.style.background = t.enabled ? "rgba(255,255,255,0.2)" : "#ef4444"; 
       }
     }
   });
@@ -281,14 +340,16 @@ document.addEventListener("DOMContentLoaded", () => {
     if (localStream) {
       const t = localStream.getVideoTracks()[0];
       if (t) { 
-          t.enabled = !t.enabled; 
-          toggleCam.style.background = t.enabled ? "rgba(255,255,255,0.2)" : "#ef4444"; 
+        t.enabled = !t.enabled; 
+        toggleCam.style.background = t.enabled ? "rgba(255,255,255,0.2)" : "#ef4444"; 
       }
     }
   });
 
   window.addEventListener("contextChanged", () => {
-    const canCall = window.currentChatContext.type === "user" && window.currentChatContext.id !== 0 && window.currentChatContext.id !== 1;
+    const canCall = window.currentChatContext.type === "user" && 
+                    window.currentChatContext.id !== 0 && 
+                    window.currentChatContext.id !== 1;
     if (callButton) callButton.style.display = canCall ? "inline-block" : "none";
     if (videoCallButton) videoCallButton.style.display = canCall ? "inline-block" : "none";
   });
