@@ -13,8 +13,8 @@ import multer from "multer";
 import { v2 as cloudinary } from "cloudinary";
 import { CloudinaryStorage } from "multer-storage-cloudinary";
 
-// --- LINK GOOGLE SCRIPT CỦA BẠN (Dùng để gửi mail thay cho Nodemailer) ---
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzpXIEwgA7f8gF61pmGFLj2TQtlsYB9glr3nlhhirAqAMsiP33xH0fG_B0pB047BGG9XQ/exec";
+// --- LINK GOOGLE SCRIPT MỚI CỦA BẠN ---
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzv4E2TAo7teW1ttV5bAoQ7qV0If9qfaIGUWgGuQ3Ky10UOu3n5HgJEnaerGlz5kHT82w/exec";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -73,8 +73,7 @@ if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY) {
   upload = multer({ storage });
 }
 
-// --- KHÔNG DÙNG NODEMAILER NỮA ĐỂ TRÁNH LỖI TIMEOUT ---
-// Chúng ta sẽ dùng otpStore để lưu mã tạm thời
+// Lưu OTP tạm thời trong RAM (Map)
 const otpStore = new Map();
 
 const authenticateToken = (req, res, next) => {
@@ -103,9 +102,9 @@ app.post("/api/upload", upload.array("files", 5), (req, res) => {
   res.json(files);
 });
 
-// --- AUTH APIs (OTP & REGISTER - ĐÃ SỬA) ---
+// --- AUTH APIs (OTP & REGISTER) ---
 
-// 1. Gửi OTP (Dùng Google Apps Script)
+// 1. Gửi OTP (Sử dụng Google Apps Script để tránh lỗi Timeout)
 app.post("/api/send-otp", async (req, res) => {
   const { email, username } = req.body;
   if (!email || !username) return res.status(400).json({ message: "Thiếu thông tin!" });
@@ -139,13 +138,18 @@ app.post("/api/send-otp", async (req, res) => {
        res.json({ message: "Đã gửi mã OTP qua email!" });
     } else {
        console.error("❌ Lỗi từ Google Script:", result.message);
-       // Vẫn trả về thành công để Client không bị treo, nhưng in lỗi ra server log
+       // Vẫn trả về thành công để Client không bị treo, nhưng in lỗi ra server log để debug
        res.status(500).json({ message: "Lỗi gửi mail: " + result.message });
     }
 
   } catch (e) {
     console.error("❌ Lỗi Server:", e);
-    res.status(500).json({ message: "Lỗi hệ thống khi gửi mail." });
+    // Nếu lỗi cú pháp JSON (do Google chặn), thông báo rõ
+    if (e.name === "SyntaxError") {
+        res.status(500).json({ message: "Lỗi cấu hình Google Script: Chưa chọn 'Anyone' (Bất kỳ ai) khi Deploy." });
+    } else {
+        res.status(500).json({ message: "Lỗi hệ thống khi gửi mail." });
+    }
   }
 });
 
