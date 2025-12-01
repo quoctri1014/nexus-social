@@ -1,6 +1,5 @@
 import dotenv from "dotenv";
 dotenv.config();
-
 import express from "express";
 import http from "http";
 import { Server } from "socket.io";
@@ -14,7 +13,6 @@ import multer from "multer";
 import nodemailer from "nodemailer";
 import { v2 as cloudinary } from "cloudinary";
 import { CloudinaryStorage } from "multer-storage-cloudinary";
-import axios from "axios";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,10 +20,13 @@ const __dirname = path.dirname(__filename);
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const JWT_SECRET = process.env.JWT_SECRET || "secret_key_nexus_2025";
 const AI_BOT_ID = 1;
-const MAX_HISTORY = 20; // keep last 20 messages
+
+// Lưu trữ context cuộc trò chuyện với từng user
+const userChatHistory = new Map();
+const MAX_HISTORY = 20; // Lưu 20 tin nhắn gần nhất
 
 if (!GEMINI_API_KEY) {
-  console.warn("⚠️ CHƯA CẤU HÌNH GEMINI_API_KEY. AI sẽ không hoạt động.");
+  console.error("⚠️ CHƯA CẤU HÌNH GEMINI_API_KEY. AI không hoạt động.");
 } else {
   console.log("✅ Gemini API Key found.");
 }
@@ -39,7 +40,7 @@ const io = new Server(server, {
 const onlineUsers = {};
 
 app.use(express.static("public"));
-app.use(express.json({ limit: "5mb" }));
+app.use(express.json());
 
 // --- UPLOAD CONFIG ---
 const uploadDir = path.join(__dirname, "public/uploads");
@@ -126,7 +127,6 @@ app.post("/api/send-otp", async (req, res) => {
     });
     res.json({ message: "OK" });
   } catch (e) {
-    console.error("send-otp error:", e);
     res.status(500).json({ message: "Lỗi mail" });
   }
 });
@@ -150,7 +150,6 @@ app.post("/api/complete-register", async (req, res) => {
     otpStore.delete(email);
     res.status(201).json({ message: "OK" });
   } catch (e) {
-    console.error("complete-register error:", e);
     res.status(500).json({ message: "Lỗi DB" });
   }
 });
@@ -170,22 +169,16 @@ app.post("/api/login", async (req, res) => {
     );
     res.json({ message: "OK", token });
   } catch (e) {
-    console.error("login error:", e);
     res.status(500).json({ message: "Error" });
   }
 });
 
 app.get("/api/me", authenticateToken, async (req, res) => {
-  try {
-    const [r] = await db.query(
-      "SELECT id, username, nickname, email, avatar, bio, location, work, education FROM users WHERE id=?",
-      [req.user.userId]
-    );
-    res.json(r[0]);
-  } catch (e) {
-    console.error("/api/me error:", e);
-    res.status(500).json({ message: "Error" });
-  }
+  const [r] = await db.query(
+    "SELECT id, username, nickname, email, avatar, bio, location, work, education FROM users WHERE id=?",
+    [req.user.userId]
+  );
+  res.json(r[0]);
 });
 
 app.get("/api/users/search", authenticateToken, async (req, res) => {
@@ -198,7 +191,6 @@ app.get("/api/users/search", authenticateToken, async (req, res) => {
     );
     res.json(users);
   } catch (e) {
-    console.error("/api/users/search error:", e);
     res.status(500).json({ message: "Error" });
   }
 });
@@ -211,7 +203,6 @@ app.get("/api/users/suggestions", authenticateToken, async (req, res) => {
     );
     res.json(u);
   } catch (e) {
-    console.error("/api/users/suggestions error:", e);
     res.status(500).json({ message: "Error" });
   }
 });
@@ -224,7 +215,6 @@ app.get("/api/friends", authenticateToken, async (req, res) => {
     );
     res.json(f);
   } catch (e) {
-    console.error("/api/friends error:", e);
     res.status(500).json({ message: "Error" });
   }
 });
@@ -237,7 +227,6 @@ app.get("/api/notifications", authenticateToken, async (req, res) => {
     );
     res.json(reqs);
   } catch (e) {
-    console.error("/api/notifications error:", e);
     res.status(500).json({ message: "Error" });
   }
 });
@@ -250,7 +239,6 @@ app.post("/api/friends/request", authenticateToken, async (req, res) => {
     );
     res.json({ message: "OK" });
   } catch (e) {
-    console.error("/api/friends/request error:", e);
     res.status(500).json({ message: "Duplicate" });
   }
 });
@@ -263,7 +251,6 @@ app.post("/api/friends/accept", authenticateToken, async (req, res) => {
     );
     res.json({ message: "OK" });
   } catch (e) {
-    console.error("/api/friends/accept error:", e);
     res.status(500).json({ message: "Error" });
   }
 });
@@ -271,8 +258,7 @@ app.post("/api/friends/accept", authenticateToken, async (req, res) => {
 app.post("/api/groups/create", authenticateToken, async (req, res) => {
   const { name, members } = req.body;
   const creatorId = req.user.userId;
-  const memberList = Array.isArray(members) ? [...members] : [];
-  if (!memberList.includes(creatorId)) memberList.push(creatorId);
+  if (!members.includes(creatorId)) members.push(creatorId);
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
@@ -280,7 +266,7 @@ app.post("/api/groups/create", authenticateToken, async (req, res) => {
       "INSERT INTO groups (name, creatorId) VALUES (?, ?)",
       [name, creatorId]
     );
-    const values = memberList.map((uid) => [g.insertId, uid]);
+    const values = members.map((uid) => [g.insertId, uid]);
     if (values.length > 0)
       await conn.query("INSERT INTO group_members (groupId, userId) VALUES ?", [
         values,
@@ -289,8 +275,7 @@ app.post("/api/groups/create", authenticateToken, async (req, res) => {
     const [gInfo] = await db.query("SELECT * FROM groups WHERE id=?", [
       g.insertId,
     ]);
-
-    memberList.forEach((uid) => {
+    members.forEach((uid) => {
       if (onlineUsers[uid]) {
         io.to(onlineUsers[uid].socketId).emit("newGroupAdded", gInfo[0]);
         const s = io.sockets.sockets.get(onlineUsers[uid].socketId);
@@ -300,14 +285,13 @@ app.post("/api/groups/create", authenticateToken, async (req, res) => {
     res.json({ message: "OK" });
   } catch (e) {
     await conn.rollback();
-    console.error("/api/groups/create error:", e);
     res.status(500).json({ message: "Error" });
   } finally {
     conn.release();
   }
 });
 
-// --- AI FRIEND RECOMMENDATIONS ---
+// === AI FRIEND RECOMMENDATIONS ===
 app.post("/api/ai/recommend-friends", authenticateToken, async (req, res) => {
   const { criteria } = req.body;
   const userId = req.user.userId;
@@ -317,12 +301,14 @@ app.post("/api/ai/recommend-friends", authenticateToken, async (req, res) => {
   }
 
   try {
+    // Lấy thông tin user hiện tại
     const [userInfo] = await db.query(
       "SELECT bio, location, work, education FROM users WHERE id=?",
       [userId]
     );
-    const user = userInfo[0] || {};
+    const user = userInfo[0];
 
+    // Lấy danh sách người dùng tiềm năng
     const [potentialFriends] = await db.query(
       `
       SELECT id, username, nickname, avatar, bio, location, work, education 
@@ -343,7 +329,7 @@ app.post("/api/ai/recommend-friends", authenticateToken, async (req, res) => {
       [userId, userId, userId, userId, userId]
     );
 
-    if (!potentialFriends || potentialFriends.length === 0) {
+    if (potentialFriends.length === 0) {
       return res.json({ recommendations: [], reasons: [] });
     }
 
@@ -359,15 +345,15 @@ Tiêu chí tìm kiếm: "${criteria || "Những người phù hợp nhất"}"
 
 Danh sách ${potentialFriends.length} người dùng:
 ${potentialFriends
-      .map(
-        (u, i) =>
-          `${i + 1}. ID: ${u.id}, Username: ${u.username}, Nickname: ${u.nickname}
+  .map(
+    (u, i) =>
+      `${i + 1}. ID: ${u.id}, Username: ${u.username}, Nickname: ${u.nickname}
    Bio: ${u.bio || "Không có"}
    Vị trí: ${u.location || "Không có"}
    Công việc: ${u.work || "Không có"}
    Học vấn: ${u.education || "Không có"}`
-      )
-      .join("\n\n")}
+  )
+  .join("\n\n")}
 
 Hãy phân tích và gợi ý TOP 5 người phù hợp nhất. Trả lời CHÍNH XÁC theo định dạng JSON này:
 {
@@ -381,6 +367,7 @@ LƯU Ý:
 - Reason phải ngắn gọn, cụ thể (1-2 câu)
 - Chỉ trả về JSON, không thêm text nào khác`;
 
+    // Gọi API với format messages
     const messages = [
       {
         role: "user",
@@ -391,24 +378,24 @@ LƯU Ý:
     const data = await callGeminiAPI(messages);
 
     if (data && data.candidates && data.candidates.length > 0) {
-      const responseText =
-        data.candidates[0]?.content?.parts?.[0]?.text ||
-        (data.candidates[0] && JSON.stringify(data.candidates[0])) ||
-        "";
+      const responseText = data.candidates[0].content.parts[0].text;
 
-      try {
-        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error("No JSON in AI response");
+      // Trích xuất JSON từ response
+      const jsonMatch = responseText.match(/\{[\s\S]*?\n?\s*\}/);
+
+      if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
         const recommendedIds = parsed.recommendations.map((r) =>
           parseInt(r.id)
         );
 
+        // Lấy thông tin chi tiết
         const [detailedUsers] = await db.query(
           `SELECT id, username, nickname, avatar FROM users WHERE id IN (?)`,
           [recommendedIds]
         );
 
+        // Kết hợp với reasons
         const finalRecommendations = detailedUsers.map((u) => {
           const reason = parsed.recommendations.find(
             (r) => parseInt(r.id) === u.id
@@ -419,30 +406,15 @@ LƯU Ý:
           };
         });
 
-        // Save recommendations into ai_recommendations table (upsert)
-        try {
-          const now = new Date();
-          for (const rec of finalRecommendations) {
-            await db.query(
-              `INSERT INTO ai_recommendations (userId, recommendedUserId, criteria, reason, createdAt) VALUES (?, ?, ?, ?, ?) 
-               ON DUPLICATE KEY UPDATE reason = VALUES(reason), createdAt = VALUES(createdAt)`,
-              [userId, rec.id, criteria || null, rec.reason, now]
-            );
-          }
-        } catch (e) {
-          console.warn("ai_recommendions save failed:", e.message);
-        }
-
         res.json({
           recommendations: finalRecommendations,
           total: finalRecommendations.length,
         });
-      } catch (err) {
-        console.warn("⚠️ Không parse được JSON từ AI:", responseText, err);
-        return res.status(400).json({ message: "AI trả về không hợp lệ" });
+      } else {
+        console.warn("⚠️ Không parse được JSON từ AI:", responseText);
+        res.status(400).json({ message: "AI trả về không hợp lệ" });
       }
     } else {
-      console.warn("⚠️ AI không phản hồi or malformed response", data);
       res.status(500).json({ message: "AI không phản hồi" });
     }
   } catch (e) {
@@ -451,35 +423,51 @@ LƯU Ý:
   }
 });
 
-// --- GEMINI AI LOGIC (USING axios so it works on Node 16) ---
-async function callGeminiAPI(messages) {
-  if (!GEMINI_API_KEY) return null;
-
-  // model and endpoint; use v1beta or v1 depending on your key permissions
-  const modelName = "gemini-2.0-flash";
+// --- GEMINI AI LOGIC WITH CONTEXT ---
+async function callGeminiAPI(messages, systemInstruction = null) {
+  // Sử dụng model Gemini hợp lệ
+  const modelName = "gemini-1.5-flash";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
 
-  const payload = {
-    contents: messages.map((m) => ({ role: m.role, parts: m.parts })),
-    generationConfig: {
-      temperature: 0.7,
-      topP: 0.95,
-      maxOutputTokens: 1024,
-    },
-  };
+  if (!GEMINI_API_KEY) {
+    console.error("❌ GEMINI_API_KEY chưa được cấu hình");
+    return null;
+  }
 
   try {
-    const resp = await axios.post(url, payload, {
-      headers: { "Content-Type": "application/json" },
-      timeout: 30_000,
-    });
-    return resp.data;
-  } catch (err) {
-    if (err.response) {
-      console.error("Gemini API error:", err.response.status, err.response.data);
-    } else {
-      console.error("Gemini request failed:", err.message);
+    const requestBody = {
+      contents: messages,
+      generationConfig: {
+        temperature: 0.9,
+        topP: 0.95,
+        maxOutputTokens: 1024,
+      },
+    };
+
+    // Thêm system instruction nếu có
+    if (systemInstruction) {
+      requestBody.systemInstruction = {
+        parts: [{ text: systemInstruction }],
+      };
     }
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error(`❌ Lỗi từ Google API (${response.status}):`, errText);
+      return null;
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (err) {
+    console.error(`❌ Lỗi khi gọi API:`, err.message);
+    console.error(`❌ Stack trace:`, err.stack);
     return null;
   }
 }
@@ -495,7 +483,7 @@ async function handleAIChat(msg, uid, socket) {
   }
 
   try {
-    // Load last MAX_HISTORY messages between user and AI
+    // Lấy lịch sử cuộc trò chuyện từ database
     const [chatHistory] = await db.query(
       `SELECT content, senderId, createdAt 
        FROM messages 
@@ -505,42 +493,49 @@ async function handleAIChat(msg, uid, socket) {
       [uid, AI_BOT_ID, AI_BOT_ID, uid, MAX_HISTORY]
     );
 
-    const systemPrompt = {
-      role: "user",
-      parts: [
-        {
-          text: `Bạn là trợ lý ảo thông minh tên "Nexus AI" cho mạng xã hội Nexus.
+    // Xây dựng messages theo format của Gemini API
+    const systemInstruction = `Bạn là trợ lý ảo thông minh tên "Nexus AI" cho mạng xã hội Nexus. 
 Nhiệm vụ của bạn:
 - Trả lời bằng tiếng Việt thân thiện, tự nhiên
 - Hỗ trợ người dùng về các tính năng mạng xã hội
 - Gợi ý bạn bè, nhóm, hoạt động
 - Trò chuyện như một người bạn thật sự
-- Nhớ ngữ cảnh cuộc trò chuyện trước đó`,
-        },
-      ],
-    };
+- Nhớ ngữ cảnh cuộc trò chuyện trước đó`;
 
-    const messages = [systemPrompt];
+    const messages = [];
 
-    if (Array.isArray(chatHistory)) {
-      chatHistory.reverse().forEach((h) => {
-        if (h.senderId === AI_BOT_ID) {
-          messages.push({ role: "model", parts: [{ text: h.content }] });
-        } else {
-          messages.push({ role: "user", parts: [{ text: h.content }] });
-        }
-      });
-    }
+    // Thêm lịch sử chat (đảo ngược để đúng thứ tự thời gian)
+    chatHistory.reverse().forEach((h) => {
+      if (h.senderId === AI_BOT_ID) {
+        // Tin nhắn từ AI
+        messages.push({
+          role: "model",
+          parts: [{ text: h.content }],
+        });
+      } else {
+        // Tin nhắn từ user
+        messages.push({
+          role: "user",
+          parts: [{ text: h.content }],
+        });
+      }
+    });
 
-    messages.push({ role: "user", parts: [{ text: msg }] });
+    // Thêm tin nhắn mới nhất từ user
+    messages.push({
+      role: "user",
+      parts: [{ text: msg }],
+    });
 
-    console.log(`🤖 Calling Gemini for user ${uid}...`);
+    console.log(`🤖 Đang xử lý câu hỏi từ user ${uid}:`, msg);
 
-    const data = await callGeminiAPI(messages);
+    // Gọi Gemini API với system instruction
+    const data = await callGeminiAPI(messages, systemInstruction);
 
-    if (data && Array.isArray(data.candidates) && data.candidates.length > 0) {
+    if (data && data.candidates && data.candidates.length > 0) {
       const candidate = data.candidates[0];
 
+      // Kiểm tra safety ratings
       if (candidate.finishReason === "SAFETY") {
         const reply =
           "Xin lỗi, tôi không thể trả lời câu hỏi này do vi phạm chính sách an toàn nội dung. Bạn có thể hỏi tôi điều gì khác không? 😊";
@@ -559,50 +554,49 @@ Nhiệm vụ của bạn:
         return;
       }
 
-      const replyText =
-        candidate?.content?.parts?.[0]?.text?.trim() ||
-        "Xin lỗi, tôi chưa hiểu. Bạn có thể nói lại rõ hơn được không?";
+      // Lấy phản hồi từ AI
+      if (!candidate.content || !candidate.content.parts || candidate.content.parts.length === 0) {
+        throw new Error("AI response không có nội dung");
+      }
+      const reply = candidate.content.parts[0].text.trim();
 
-      // Save AI response to messages table
+      // Lưu phản hồi vào database
       const [r] = await db.query(
         "INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)",
-        [AI_BOT_ID, uid, replyText]
+        [AI_BOT_ID, uid, reply]
       );
 
+      // Gửi phản hồi cho user
       socket.emit("newMessage", {
         id: r.insertId,
         senderId: AI_BOT_ID,
-        content: replyText,
+        content: reply,
         createdAt: new Date(),
       });
 
-      // Save chat log to ai_chat_logs table (non-blocking)
-      (async () => {
-        try {
-          await db.query(
-            "INSERT INTO ai_chat_logs (userId, userMessage, aiResponse, topic, sentiment) VALUES (?, ?, ?, ?, ?)",
-            [uid, msg, replyText, null, "neutral"]
-          );
-        } catch (e) {
-          console.warn("ai_chat_logs insert failed:", e.message);
-        }
-      })();
-
-      console.log(`✅ AI responded to user ${uid}`);
+      console.log(`✅ AI phản hồi thành công cho user ${uid}`);
     } else {
-      console.warn("⚠️ No valid AI candidate:", data);
+      // Không có phản hồi hợp lệ
+      const errorMsg =
+        "Xin lỗi, tôi đang gặp chút vấn đề. Bạn có thể thử lại không? 🤔";
+
       socket.emit("newMessage", {
         senderId: AI_BOT_ID,
-        content:
-          "Hệ thống AI đang quá tải hoặc gặp lỗi. Vui lòng thử lại sau.",
+        content: errorMsg,
         createdAt: new Date(),
       });
+
+      console.warn(`⚠️ Không nhận được phản hồi hợp lệ từ AI`);
     }
   } catch (e) {
-    console.error("❌ AI handler error:", e);
+    console.error(`❌ Lỗi AI:`, e.message, e.stack);
+
+    const errorMsg =
+      "Rất xin lỗi, có lỗi xảy ra. Bạn vui lòng thử lại sau nhé! 😅";
+
     socket.emit("newMessage", {
       senderId: AI_BOT_ID,
-      content: "Rất xin lỗi, có lỗi xảy ra bên server AI.",
+      content: errorMsg,
       createdAt: new Date(),
     });
   }
@@ -611,7 +605,6 @@ Nhiệm vụ của bạn:
 // --- SOCKET.IO ---
 io.use((socket, next) => {
   const token = socket.handshake.auth.token;
-  if (!token) return next(new Error("Auth Error"));
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) return next(new Error("Auth Error"));
     socket.user = user;
@@ -624,110 +617,85 @@ io.on("connection", async (socket) => {
   onlineUsers[userId] = { socketId: socket.id, username: socket.user.username };
 
   const sendUserList = async () => {
-    try {
-      const [users] = await db.query(
-        "SELECT id, username, nickname, avatar FROM users"
-      );
-      const list = users.map((u) => ({
-        ...u,
-        online: !!onlineUsers[u.id] || u.id === AI_BOT_ID,
-      }));
-      io.emit("userList", list);
-    } catch (e) {
-      console.error("sendUserList error:", e);
-    }
+    const [users] = await db.query(
+      "SELECT id, username, nickname, avatar FROM users"
+    );
+    const list = users.map((u) => ({
+      ...u,
+      online: !!onlineUsers[u.id] || u.id === AI_BOT_ID,
+    }));
+    io.emit("userList", list);
   };
   await sendUserList();
 
   socket.on("privateMessage", async (data) => {
     const { recipientId, content, ttl } = data;
     if (!recipientId || !content) return;
-    const userIdLocal = socket.user.userId || userId;
 
     if (recipientId === AI_BOT_ID) {
       await db.query(
         "INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)",
-        [userIdLocal, AI_BOT_ID, content]
+        [userId, AI_BOT_ID, content]
       );
       socket.emit("newMessage", {
-        senderId: userIdLocal,
+        senderId: userId,
         content: content,
         createdAt: new Date(),
       });
-      await handleAIChat(content, userIdLocal, socket);
+      await handleAIChat(content, userId, socket);
       return;
     }
 
-    try {
-      const [r] = await db.query(
-        "INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)",
-        [userIdLocal, recipientId, content]
-      );
-      const msg = {
-        id: r.insertId,
-        senderId: userIdLocal,
-        content,
-        createdAt: new Date(),
-        ttl,
-      };
-      if (onlineUsers[recipientId])
-        io.to(onlineUsers[recipientId].socketId).emit("newMessage", msg);
-      socket.emit("newMessage", msg);
-      if (ttl)
-        setTimeout(async () => {
-          try {
-            await db.query("DELETE FROM messages WHERE id = ?", [r.insertId]);
-          } catch (e) {
-            console.error("TTL delete failed:", e);
-          }
-        }, ttl);
-    } catch (e) {
-      console.error("privateMessage insert error:", e);
-    }
+    const [r] = await db.query(
+      "INSERT INTO messages (senderId, recipientId, content) VALUES (?, ?, ?)",
+      [userId, recipientId, content]
+    );
+    const msg = {
+      id: r.insertId,
+      senderId: userId,
+      content,
+      createdAt: new Date(),
+      ttl,
+    };
+    if (onlineUsers[recipientId])
+      io.to(onlineUsers[recipientId].socketId).emit("newMessage", msg);
+    socket.emit("newMessage", msg);
+    if (ttl)
+      setTimeout(async () => {
+        await db.query("DELETE FROM messages WHERE id = ?", [r.insertId]);
+      }, ttl);
   });
 
   socket.on("deleteConversation", async ({ recipientId }) => {
-    try {
-      await db.query(
-        "DELETE FROM messages WHERE (senderId=? AND recipientId=?) OR (senderId=? AND recipientId=?)",
-        [userId, recipientId, recipientId, userId]
-      );
-      socket.emit("conversationDeleted", { partnerId: recipientId });
-      if (onlineUsers[recipientId])
-        io.to(onlineUsers[recipientId].socketId).emit("conversationDeleted", {
-          partnerId: userId,
-        });
-    } catch (e) {
-      console.error("deleteConversation error:", e);
-    }
+    await db.query(
+      "DELETE FROM messages WHERE (senderId=? AND recipientId=?) OR (senderId=? AND recipientId=?)",
+      [userId, recipientId, recipientId, userId]
+    );
+    socket.emit("conversationDeleted", { partnerId: recipientId });
+    if (onlineUsers[recipientId])
+      io.to(onlineUsers[recipientId].socketId).emit("conversationDeleted", {
+        partnerId: userId,
+      });
   });
 
   socket.on("deleteMessage", async ({ messageId, recipientId }) => {
-    try {
-      await db.query("DELETE FROM messages WHERE id = ? AND senderId = ?", [
+    await db.query("DELETE FROM messages WHERE id = ? AND senderId = ?", [
+      messageId,
+      userId,
+    ]);
+    socket.emit("messageDeleted", { messageId });
+    if (onlineUsers[recipientId])
+      io.to(onlineUsers[recipientId].socketId).emit("messageDeleted", {
         messageId,
-        userId,
-      ]);
-      socket.emit("messageDeleted", { messageId });
-      if (onlineUsers[recipientId])
-        io.to(onlineUsers[recipientId].socketId).emit("messageDeleted", {
-          messageId,
-        });
-    } catch (e) {
-      console.error("deleteMessage error:", e);
-    }
+      });
   });
 
   socket.on("loadPrivateHistory", async ({ recipientId }) => {
-    try {
-      const [msgs] = await db.query(
-        "SELECT * FROM messages WHERE (senderId=? AND recipientId=?) OR (senderId=? AND recipientId=?) ORDER BY createdAt ASC",
-        [userId, recipientId, recipientId, userId]
-      );
-      socket.emit("privateHistory", { recipientId, messages: msgs });
-    } catch (e) {
-      console.error("loadPrivateHistory error:", e);
-    }
+    const [msgs] = await db.query(
+      "SELECT * FROM messages WHERE (senderId=? AND recipientId=?) OR (senderId=? AND recipientId=?) ORDER BY createdAt ASC",
+      [userId, recipientId, recipientId, userId]
+    );
+    socket.emit("privateHistory", { recipientId, messages: msgs });
   });
 
   socket.on("sendHeart", ({ recipientId }) => {
@@ -738,25 +706,19 @@ io.on("connection", async (socket) => {
   socket.on("callOffer", async (d) => {
     const rec = onlineUsers[d.recipientId];
     if (rec) {
-      try {
-        const [u] = await db.query(
-          "SELECT username, nickname, avatar FROM users WHERE id=?",
-          [userId]
-        );
-        const avt =
-          u[0].avatar ||
-          `https://ui-avatars.com/api/?name=${encodeURIComponent(
-            u[0].nickname
-          )}`;
-        io.to(rec.socketId).emit("callOffer", {
-          ...d,
-          senderId: userId,
-          senderName: u[0].nickname || u[0].username,
-          senderAvatar: avt,
-        });
-      } catch (e) {
-        console.error("callOffer error:", e);
-      }
+      const [u] = await db.query(
+        "SELECT username, nickname, avatar FROM users WHERE id=?",
+        [userId]
+      );
+      const avt =
+        u[0].avatar ||
+        `https://ui-avatars.com/api/?name=${encodeURIComponent(u[0].nickname)}`;
+      io.to(rec.socketId).emit("callOffer", {
+        ...d,
+        senderId: userId,
+        senderName: u[0].nickname || u[0].username,
+        senderAvatar: avt,
+      });
     }
   });
   socket.on(
@@ -799,6 +761,5 @@ io.on("connection", async (socket) => {
 app.get("*", (req, res) =>
   res.sendFile(path.join(__dirname, "public", "index.html"))
 );
-
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
