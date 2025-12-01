@@ -57,7 +57,6 @@
     </nav>
 
     <div class="main-layout" id="main-layout">
-      
       <aside class="sidebar-left" id="sidebar-left">
         <div class="profile-card-mini" id="my-profile-card">
           <div class="pcm-cover"></div>
@@ -137,10 +136,7 @@
              </div>
           </div>
         </div>
-        
-        <div class="modal-body comment-body" id="comments-list">
-           </div>
-
+        <div class="modal-body comment-body" id="comments-list"></div>
         <div class="comment-input-section">
             <img id="comment-my-avatar" src="" alt="" />
             <div class="comment-input-wrapper">
@@ -179,6 +175,21 @@
           <button id="save-profile-btn" class="btn-primary" style="flex: 2">Lưu thay đổi</button>
         </div>
       </div>
+    </div>
+
+    <div id="story-viewer" class="story-viewer hidden">
+        <div class="story-viewer-content">
+            <div class="sv-header">
+                <img id="sv-avatar" src="" alt="avatar">
+                <div class="sv-info">
+                    <span id="sv-name">User</span>
+                    <span id="sv-time">1 giờ trước</span>
+                </div>
+                <div class="sv-close" id="close-story-viewer"><i class="fas fa-times"></i></div>
+            </div>
+            <div class="sv-body" id="sv-body">
+                </div>
+        </div>
     </div>
 
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
