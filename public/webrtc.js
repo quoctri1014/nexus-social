@@ -30,28 +30,32 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentRecipientId = null;
   let callTimeout = null;
   
-  // ✅ LƯU THÔNG TIN CUỘC GỌI ĐẾN (FIX CHÍNH)
+  // ✅ LƯU THÔNG TIN CUỘC GỌI ĐẾN
   let pendingOffer = null;
   let pendingIsVideo = false;
-  let isProcessingCall = false; // ✅ Chặn duplicate calls
+  let isProcessingCall = false;
+  let pendingICECandidates = []; // ✅ Lưu ICE candidates đến sớm
 
-  // Cấu hình STUN Server
+  // Cấu hình STUN/TURN Server (✅ Thêm TURN để vượt firewall)
   const rtcConfig = {
     iceServers: [
       { urls: "stun:stun.l.google.com:19302" },
+      { urls: "stun:stun1.l.google.com:19302" },
+      { urls: "stun:stun2.l.google.com:19302" },
       { urls: "stun:global.stun.twilio.com:3478" }
-    ]
+    ],
+    iceCandidatePoolSize: 10 // ✅ Tăng pool size
   };
 
-  // --- XỬ LÝ NHẠC CHUÔNG AN TOÀN ---
+  // --- XỬ LÝ NHẠC CHUÔNG ---
   const playRingtone = async () => {
     if (ringtone) {
       try {
         ringtone.currentTime = 0;
-        ringtone.loop = true; // ✅ Thêm loop để nhạc chuông lặp lại
+        ringtone.loop = true;
         await ringtone.play();
       } catch (err) {
-        console.warn("Không thể phát nhạc (Cần tương tác):", err);
+        console.warn("Không thể phát nhạc:", err);
       }
     }
   };
@@ -74,36 +78,72 @@ document.addEventListener("DOMContentLoaded", () => {
     else if (err.name === 'NotFoundError') {
       msg = "❌ Không tìm thấy Camera/Mic.";
     }
-    else if (err.message && err.message.includes("sdp")) {
-      msg = "⚠️ Lỗi dữ liệu cuộc gọi. Vui lòng thử lại.";
-    }
 
     alert(msg);
     hangUp();
   };
 
   const createPeerConnection = (stream) => {
+    console.log("📡 Tạo PeerConnection mới...");
     const pc = new RTCPeerConnection(rtcConfig);
-    if (stream) stream.getTracks().forEach((track) => pc.addTrack(track, stream));
     
+    // ✅ Add tracks từ localStream
+    if (stream) {
+      stream.getTracks().forEach((track) => {
+        console.log(`➕ Thêm track: ${track.kind} (enabled: ${track.enabled})`);
+        pc.addTrack(track, stream);
+      });
+    }
+    
+    // ✅ Xử lý ICE Candidate
     pc.onicecandidate = (e) => {
       if (e.candidate) {
         const targetId = currentRecipientId || currentCallerId;
-        if (targetId) window.socket.emit("sendICE", { recipientId: targetId, candidate: e.candidate });
+        console.log("🧊 Gửi ICE candidate:", e.candidate.type);
+        if (targetId) {
+          window.socket.emit("sendICE", { 
+            recipientId: targetId, 
+            candidate: e.candidate 
+          });
+        }
       }
     };
 
+    // ✅ Xử lý khi nhận Remote Track (QUAN TRỌNG!)
     pc.ontrack = (e) => {
+      console.log("📺 Nhận remote track:", e.track.kind, "Stream ID:", e.streams[0].id);
+      console.log("Track enabled:", e.track.enabled, "readyState:", e.track.readyState);
+      
       if (remoteVideo.srcObject !== e.streams[0]) {
         remoteVideo.srcObject = e.streams[0];
+        console.log("✅ Đã gán remoteVideo.srcObject");
+        
+        // ✅ Force play remoteVideo
+        remoteVideo.play().catch(err => {
+          console.error("❌ Không thể play remoteVideo:", err);
+        });
+      }
+    };
+
+    // ✅ Theo dõi trạng thái kết nối
+    pc.oniceconnectionstatechange = () => {
+      console.log("🔌 ICE Connection State:", pc.iceConnectionState);
+      if (pc.iceConnectionState === "connected") {
+        console.log("✅ Kết nối P2P thành công!");
       }
     };
 
     pc.onconnectionstatechange = () => {
-      console.log("Connection state:", pc.connectionState);
+      console.log("🔗 Connection State:", pc.connectionState);
       if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
+        console.warn("⚠️ Kết nối bị ngắt");
         hangUp(false);
       }
+    };
+
+    // ✅ Debug signaling state
+    pc.onsignalingstatechange = () => {
+      console.log("📡 Signaling State:", pc.signalingState);
     };
     
     return pc;
@@ -118,17 +158,32 @@ document.addEventListener("DOMContentLoaded", () => {
     if(toggleCam) toggleCam.style.background = "rgba(255,255,255,0.2)";
 
     try {
-      localStream = await navigator.mediaDevices.getUserMedia({ video: isVideo, audio: true });
+      console.log("🎤 Yêu cầu quyền Camera/Mic...");
+      localStream = await navigator.mediaDevices.getUserMedia({ 
+        video: isVideo ? { width: 640, height: 480 } : false, 
+        audio: { 
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        } 
+      });
+      
       localVideo.srcObject = localStream;
       localVideo.muted = true;
+      await localVideo.play();
       callWindow.classList.remove("hidden");
 
+      console.log("📡 Tạo PeerConnection (Caller)...");
       peerConnection = createPeerConnection(localStream);
       
-      const offer = await peerConnection.createOffer();
+      console.log("📤 Tạo Offer...");
+      const offer = await peerConnection.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: isVideo
+      });
       await peerConnection.setLocalDescription(offer);
 
-      // ✅ Gửi offer đầy đủ
+      console.log("📨 Gửi Offer đến người nhận");
       window.socket.emit("callOffer", { 
         recipientId: currentRecipientId, 
         offer: {
@@ -147,34 +202,33 @@ document.addEventListener("DOMContentLoaded", () => {
   window.socket.on("callOffer", ({ senderId, senderName, senderAvatar, offer, isVideo }) => {
     console.log("📞 Cuộc gọi đến từ:", senderName, "Offer:", offer);
     
-    // ✅ BỎ QUA NẾU ĐANG XỬ LÝ CUỘC GỌI (Chặn duplicate)
+    // ✅ BỎ QUA DUPLICATE
     if (isProcessingCall) {
-      console.log("⚠️ Đã có cuộc gọi đang xử lý, bỏ qua offer này");
+      console.log("⚠️ Đã có cuộc gọi đang xử lý, bỏ qua");
       return;
     }
     
-    // ✅ KIỂM TRA OFFER HỢP LỆ - Bỏ qua offer rỗng/undefined
+    // ✅ VALIDATE OFFER
     if (!offer || typeof offer !== 'object' || !offer.sdp || !offer.type) {
       console.warn("⚠️ Offer không hợp lệ, chờ offer tiếp theo...");
-      return; // Không reject, chỉ bỏ qua và chờ offer hợp lệ
+      return;
     }
     
-    // ✅ KIỂM TRA ĐANG BẬN
+    // ✅ KIỂM TRA BẬN
     if (currentCallerId || currentRecipientId || peerConnection) {
-      console.log("📵 Đang bận, từ chối cuộc gọi");
+      console.log("📵 Đang bận");
       window.socket.emit("callReject", { callerId: senderId, reason: "BUSY" });
       return;
     }
     
-    // ✅ ĐÁNH DẤU ĐANG XỬ LÝ
+    // ✅ ĐÁNH DẤU XỬ LÝ
     isProcessingCall = true;
-    
-    // ✅ LƯU THÔNG TIN CUỘC GỌI
     currentCallerId = senderId;
     pendingOffer = offer;
     pendingIsVideo = isVideo;
+    pendingICECandidates = []; // Reset ICE queue
     
-    console.log("✅ Đã lưu offer hợp lệ:", offer.type, offer.sdp.substring(0, 50) + "...");
+    console.log("✅ Đã lưu offer hợp lệ");
     
     // Hiển thị popup
     incomingName.textContent = senderName || "Người dùng Nexus";
@@ -195,11 +249,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 30000);
   });
 
-  // ✅ GẮN EVENT LISTENER 1 LẦN DUY NHẤT (FIX CHÍNH)
+  // ✅ NÚT ACCEPT (Gắn 1 lần duy nhất)
   if (btnAccept) {
     btnAccept.onclick = async () => {
       if (!pendingOffer || !currentCallerId) {
-        alert("❌ Lỗi: Thông tin cuộc gọi bị mất. Vui lòng thử lại.");
+        alert("❌ Lỗi: Thông tin cuộc gọi bị mất.");
         resetCallState();
         return;
       }
@@ -209,32 +263,36 @@ document.addEventListener("DOMContentLoaded", () => {
       incomingModal.classList.add("hidden");
       
       try {
-        console.log("🎤 Đang yêu cầu quyền Camera/Mic...");
+        console.log("🎤 Yêu cầu quyền Camera/Mic (Receiver)...");
         localStream = await navigator.mediaDevices.getUserMedia({ 
-          video: pendingIsVideo, 
-          audio: true 
+          video: pendingIsVideo ? { width: 640, height: 480 } : false, 
+          audio: { 
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          } 
         });
+        
         localVideo.srcObject = localStream;
         localVideo.muted = true;
+        await localVideo.play();
         callWindow.classList.remove("hidden");
         
-        console.log("📡 Tạo PeerConnection...");
+        console.log("📡 Tạo PeerConnection (Receiver)...");
         peerConnection = createPeerConnection(localStream);
         
-        // ✅ Sử dụng pendingOffer đã lưu
-        console.log("📥 Đang set RemoteDescription với offer:", pendingOffer.type);
+        console.log("📥 Set RemoteDescription với Offer...");
         const remoteDesc = new RTCSessionDescription({
           type: 'offer',
           sdp: pendingOffer.sdp
         });
-        
         await peerConnection.setRemoteDescription(remoteDesc);
         
         console.log("📤 Tạo Answer...");
         const answer = await peerConnection.createAnswer();
         await peerConnection.setLocalDescription(answer);
         
-        console.log("✅ Gửi Answer về người gọi");
+        console.log("📨 Gửi Answer về người gọi");
         window.socket.emit("callAnswer", { 
           recipientId: currentCallerId, 
           answer: {
@@ -243,9 +301,21 @@ document.addEventListener("DOMContentLoaded", () => {
           }
         });
         
-        // ✅ Xóa thông tin tạm sau khi xử lý xong
+        // ✅ Xử lý các ICE candidates đã đến trước
+        if (pendingICECandidates.length > 0) {
+          console.log(`🧊 Xử lý ${pendingICECandidates.length} ICE candidates đã đến trước`);
+          for (const candidate of pendingICECandidates) {
+            try {
+              await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+            } catch (e) {
+              console.error("❌ Lỗi add pending ICE:", e);
+            }
+          }
+          pendingICECandidates = [];
+        }
+        
         pendingOffer = null;
-        isProcessingCall = false; // ✅ Mở khóa để nhận cuộc gọi mới
+        isProcessingCall = false;
 
       } catch (e) {
         console.error("❌ Lỗi Accept Call:", e);
@@ -256,7 +326,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
   }
 
-  // ✅ GẮN EVENT LISTENER 1 LẦN DUY NHẤT
+  // ✅ NÚT REJECT
   if (btnReject) {
     btnReject.onclick = () => {
       clearTimeout(callTimeout);
@@ -269,9 +339,9 @@ document.addEventListener("DOMContentLoaded", () => {
     };
   }
 
-  // --- XỬ LÝ NHẬN ANSWER ---
+  // --- XỬ LÝ ANSWER ---
   window.socket.on("callAnswer", async ({ answer }) => {
-    console.log("📱 Nhận answer:", answer);
+    console.log("📱 Nhận Answer:", answer);
     
     if (peerConnection && answer && answer.sdp) {
       try {
@@ -284,19 +354,24 @@ document.addEventListener("DOMContentLoaded", () => {
       } catch (e) { 
         console.error("❌ Lỗi setRemoteDescription Answer:", e); 
       }
-    } else {
-      console.warn("⚠️ Answer không hợp lệ hoặc peerConnection chưa sẵn sàng");
     }
   });
 
-  // --- XỬ LÝ ICE CANDIDATE ---
+  // --- XỬ LÝ ICE CANDIDATE (✅ FIX: Lưu ICE nếu peerConnection chưa sẵn sàng) ---
   window.socket.on("receiveICE", async ({ candidate }) => {
-    if (peerConnection && candidate) {
+    console.log("🧊 Nhận ICE candidate:", candidate?.type);
+    
+    if (peerConnection && peerConnection.remoteDescription) {
       try {
         await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        console.log("✅ Đã thêm ICE candidate");
       } catch (e) { 
-        console.error("Lỗi ICE:", e); 
+        console.error("❌ Lỗi add ICE:", e); 
       }
+    } else {
+      // ✅ Lưu ICE candidate nếu peerConnection chưa sẵn sàng
+      console.log("⏳ PeerConnection chưa sẵn sàng, lưu ICE vào queue");
+      pendingICECandidates.push(candidate);
     }
   });
   
@@ -317,18 +392,25 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   const hangUp = (emitEvent = true) => {
+    console.log("📴 Kết thúc cuộc gọi...");
     stopRingtone();
     if (callTimeout) clearTimeout(callTimeout);
     
     if (localStream) {
-      localStream.getTracks().forEach((t) => t.stop());
+      localStream.getTracks().forEach((t) => {
+        t.stop();
+        console.log(`⏹ Dừng track: ${t.kind}`);
+      });
     }
     if (peerConnection) {
       peerConnection.close();
       peerConnection = null;
+      console.log("🔌 Đã đóng PeerConnection");
     }
     
     localStream = null;
+    localVideo.srcObject = null;
+    remoteVideo.srcObject = null;
     callWindow.classList.add("hidden");
     incomingModal.classList.add("hidden");
     
@@ -340,12 +422,12 @@ document.addEventListener("DOMContentLoaded", () => {
     resetCallState();
   };
 
-  // ✅ HÀM RESET STATE (Tách riêng để tái sử dụng)
   const resetCallState = () => {
     currentRecipientId = null;
     currentCallerId = null;
     pendingOffer = null;
-    isProcessingCall = false; // ✅ Mở khóa
+    isProcessingCall = false;
+    pendingICECandidates = [];
     console.log("🔄 Đã reset call state");
   };
 
@@ -360,6 +442,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (t) { 
         t.enabled = !t.enabled; 
         toggleMic.style.background = t.enabled ? "rgba(255,255,255,0.2)" : "#ef4444"; 
+        console.log("🎤 Mic:", t.enabled ? "ON" : "OFF");
       }
     }
   });
@@ -370,6 +453,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (t) { 
         t.enabled = !t.enabled; 
         toggleCam.style.background = t.enabled ? "rgba(255,255,255,0.2)" : "#ef4444"; 
+        console.log("📹 Camera:", t.enabled ? "ON" : "OFF");
       }
     }
   });
