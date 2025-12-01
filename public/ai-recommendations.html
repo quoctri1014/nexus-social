@@ -35,6 +35,38 @@
       transform: translateY(-5px);
       box-shadow: 0 10px 25px rgba(0,0,0,0.1);
     }
+    
+    /* Style cho tin nhắn AI */
+    #ai-chat-messages {
+      scroll-behavior: smooth;
+    }
+    #ai-chat-messages p {
+      line-height: 1.6;
+      margin: 0;
+    }
+    #ai-chat-messages strong {
+      color: #1e40af;
+      font-weight: 600;
+    }
+    #ai-chat-messages em {
+      color: #6b7280;
+    }
+    
+    /* Custom scrollbar cho chat */
+    #ai-chat-messages::-webkit-scrollbar {
+      width: 6px;
+    }
+    #ai-chat-messages::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    #ai-chat-messages::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 3px;
+    }
+    #ai-chat-messages::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+    
     @media (max-width: 768px) {
       .mobile-h-96 {
         height: 400px;
@@ -135,9 +167,23 @@
     <div id="tab-chat" class="tab-content fade-in hidden">
       <div class="bg-white rounded-xl shadow-lg overflow-hidden flex flex-col mobile-h-96 h-96">
         <div id="ai-chat-messages" class="flex-1 p-4 md:p-6 overflow-y-auto bg-gray-50 flex flex-col space-y-4">
-          <div class="flex justify-start">
-            <div class="bg-gray-300 text-black px-4 py-2 rounded-lg max-w-xs">
-              👋 Chào! Tôi là trợ lý ảo của Nexus. Bạn có thể hỏi tôi về gợi ý bạn bè, hoặc bất cứ điều gì khác!
+          <div class="flex justify-start mb-4">
+            <div class="bg-white text-gray-800 px-5 py-4 rounded-lg max-w-lg border border-gray-200 shadow-md">
+              <p class="mb-2"><strong class="text-blue-600">👋 Chào bạn!</strong></p>
+              <p class="mb-2">Tôi là <strong>trợ lý AI của Nexus</strong>. Tôi có thể giúp bạn:</p>
+              <div class="flex items-start gap-2 my-1">
+                <span class="text-blue-500 mt-1">•</span>
+                <span>Tìm kiếm bạn bè phù hợp</span>
+              </div>
+              <div class="flex items-start gap-2 my-1">
+                <span class="text-blue-500 mt-1">•</span>
+                <span>Tư vấn cách kết bạn hiệu quả</span>
+              </div>
+              <div class="flex items-start gap-2 my-1">
+                <span class="text-blue-500 mt-1">•</span>
+                <span>Trả lời mọi câu hỏi của bạn</span>
+              </div>
+              <p class="mt-3 text-sm text-gray-600"><em>Hãy thử hỏi tôi bất cứ điều gì! 💬</em></p>
             </div>
           </div>
         </div>
