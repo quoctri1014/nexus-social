@@ -64,7 +64,7 @@ body { font-family: "Inter", sans-serif; background-color: var(--bg-body); color
 .hamburger-btn.active span:nth-child(2) { opacity: 0; }
 .hamburger-btn.active span:nth-child(3) { transform: rotate(-45deg) translate(7px, -7px); }
 
-/* LAYOUT - Cột trái, giữa, phải */
+/* LAYOUT */
 .main-layout { display: flex; justify-content: center; padding-top: calc(var(--header-h) + 20px); gap: 30px; max-width: 1400px; margin: 0 auto; }
 .sidebar-left, .sidebar-right { width: 280px; position: sticky; top: 80px; height: calc(100vh - 100px); overflow-y: auto; }
 .feed-content { width: 600px; display: flex; flex-direction: column; gap: 20px; padding-bottom: 50px; }
@@ -85,14 +85,23 @@ body { font-family: "Inter", sans-serif; background-color: var(--bg-body); color
 
 /* FEED & POSTS */
 .stories-wrapper { display: flex; gap: 10px; height: 200px; margin-bottom: 10px; overflow-x: auto; }
-.story-card { min-width: 110px; height: 100%; border-radius: 15px; position: relative; overflow: hidden; cursor: pointer; box-shadow: var(--shadow); background: var(--bg-card); }
-.story-card:hover { transform: scale(1.02); filter: brightness(0.95); }
 .create-story-card { display: flex; flex-direction: column; }
 .story-img-top { height: 75%; width: 100%; }
 .story-img-top img { width: 100%; height: 100%; object-fit: cover; }
 .story-footer { height: 25%; background: var(--bg-card); display: flex; align-items: flex-end; justify-content: center; position: relative; padding-bottom: 10px; font-weight: 600; font-size: 13px; color: var(--text-main); }
 .add-story-btn { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); width: 36px; height: 36px; background: var(--primary); border: 4px solid var(--bg-card); border-radius: 50%; color: white; display: flex; align-items: center; justify-content: center; }
 
+/* STORY CARD (NEW FOR VIDEO) */
+.story-card { min-width: 110px; height: 100%; border-radius: 15px; position: relative; overflow: hidden; cursor: pointer; box-shadow: var(--shadow); background: var(--text-main); }
+.story-card:hover { transform: scale(1.02); filter: brightness(0.95); }
+.story-media-wrapper { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
+.story-media { width: 100%; height: 100%; object-fit: cover; display: block; }
+.story-profile { position: absolute; top: 10px; left: 10px; z-index: 2; width: 40px; height: 40px; border-radius: 50%; border: 4px solid var(--primary); overflow: hidden; }
+.story-profile-img { width: 100%; height: 100%; object-fit: cover; }
+.story-name { position: absolute; bottom: 10px; left: 10px; color: white; font-weight: 600; font-size: 13px; z-index: 2; text-shadow: 0 1px 2px rgba(0,0,0,0.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90px; }
+.story-card:hover .story-media { transform: scale(1.05); transition: transform 0.3s ease; }
+
+/* CREATE POST CARD */
 .create-post-card { background: var(--bg-card); border-radius: var(--radius); padding: 15px; box-shadow: var(--shadow); }
 .cp-input-section { display: flex; gap: 10px; padding-bottom: 15px; border-bottom: 1px solid var(--hover-bg); }
 .cp-input-section img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
@@ -103,7 +112,7 @@ body { font-family: "Inter", sans-serif; background-color: var(--bg-body); color
 .cp-btn:hover { background: var(--hover-bg); }
 #post-btn { background: var(--primary); color: white; border: none; padding: 0 20px; border-radius: 6px; font-weight: 600; cursor: pointer; }
 
-/* POST CARD & ACTIONS (Updated) */
+/* POST CARD & ACTIONS */
 .post-card { background: var(--bg-card); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 15px; }
 .post-header { display: flex; align-items: center; padding: 15px; gap: 10px; }
 .post-header img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
@@ -117,7 +126,7 @@ body { font-family: "Inter", sans-serif; background-color: var(--bg-body); color
 .action-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 8px 0; border-radius: 5px; cursor: pointer; color: var(--text-sub); font-weight: 600; border: none; background: transparent; transition: 0.2s; position: relative; }
 .action-btn:hover { background: var(--hover-bg); }
 
-/* REACTION POPUP */
+/* REACTION POPUP (Facebook Style) */
 .reaction-wrapper { flex: 1; position: relative; }
 .reaction-popup-box {
   position: absolute; bottom: 45px; left: 0;
@@ -125,7 +134,7 @@ body { font-family: "Inter", sans-serif; background-color: var(--bg-body); color
   padding: 5px 10px; display: flex; gap: 8px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.3); border: 1px solid var(--border);
   opacity: 0; visibility: hidden; transform: translateY(10px) scale(0.8);
-  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); z-index: 100;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); z-index: 1000;
 }
 .reaction-wrapper:hover .reaction-popup-box { opacity: 1; visibility: visible; transform: translateY(0) scale(1); transition-delay: 0.3s; }
 .reaction-icon { font-size: 24px; cursor: pointer; transition: transform 0.2s; user-select: none; }
@@ -148,6 +157,7 @@ body { font-family: "Inter", sans-serif; background-color: var(--bg-body); color
 
 .modal-body.comment-body { padding: 15px; overflow-y: auto; flex: 1; background: var(--bg-body); }
 
+/* Comment Items */
 .comment-item { display: flex; gap: 10px; margin-bottom: 12px; align-items: flex-start; }
 .comment-item img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex-shrink: 0; margin-top: 2px; }
 .comment-content-wrapper { flex: 1; min-width: 0; }
@@ -163,6 +173,7 @@ body { font-family: "Inter", sans-serif; background-color: var(--bg-body); color
 .comment-item:hover .delete-comment-btn { opacity: 1; }
 .delete-comment-btn:hover { color: #e41e3f; }
 
+/* Comment Input */
 .comment-input-section { display: flex; align-items: flex-end; padding: 12px 16px; border-top: 1px solid var(--hover-bg); gap: 10px; background: var(--bg-card); border-radius: 0 0 12px 12px; }
 .comment-input-section img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex-shrink: 0; margin-bottom: 4px; }
 .comment-input-wrapper { flex: 1; background: var(--bg-body); border-radius: 20px; padding: 8px 12px; display: flex; align-items: center; }
