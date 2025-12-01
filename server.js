@@ -12,16 +12,20 @@ import { fileURLToPath } from "url";
 import multer from "multer";
 import { v2 as cloudinary } from "cloudinary";
 import { CloudinaryStorage } from "multer-storage-cloudinary";
-
-// --- LINK GOOGLE SCRIPT MỚI CỦA BẠN ---
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzv4E2TAo7teW1ttV5bAoQ7qV0If9qfaIGUWgGuQ3Ky10UOu3n5HgJEnaerGlz5kHT82w/exec";
+// import nodemailer from "nodemailer"; // Không dùng nodemailer nữa để tránh timeout
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// --- CẤU HÌNH API ---
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const JWT_SECRET = process.env.JWT_SECRET || "secret_key_nexus_2025";
 const AI_BOT_ID = 1;
+
+// --- CẤU HÌNH GỬI MAIL (GOOGLE APPS SCRIPT) ---
+// Đã thay thế ID script của bạn vào đây
+const GOOGLE_SCRIPT_ID = "AKfycbzv4E2TAo7teW1ttV5bAoQ7qV0If9qfaIGUWgGuQ3Ky10UOu3n5HgJEnaerGlz5kHT82w";
+const OTP_SCRIPT_URL = `https://script.google.com/macros/s/${GOOGLE_SCRIPT_ID}/exec`;
 
 if (!GEMINI_API_KEY) {
   console.error("⚠️ CHƯA CẤU HÌNH GEMINI_API_KEY. AI không hoạt động.");
@@ -73,7 +77,6 @@ if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY) {
   upload = multer({ storage });
 }
 
-// Lưu OTP tạm thời trong RAM (Map)
 const otpStore = new Map();
 
 const authenticateToken = (req, res, next) => {
@@ -102,54 +105,46 @@ app.post("/api/upload", upload.array("files", 5), (req, res) => {
   res.json(files);
 });
 
-// --- AUTH APIs (OTP & REGISTER) ---
-
-// 1. Gửi OTP (Sử dụng Google Apps Script để tránh lỗi Timeout)
+// Auth & User APIs
 app.post("/api/send-otp", async (req, res) => {
   const { email, username } = req.body;
-  if (!email || !username) return res.status(400).json({ message: "Thiếu thông tin!" });
-
   try {
-    // Kiểm tra DB xem user có chưa
     const [exists] = await db.query(
       "SELECT id FROM users WHERE email = ? OR username = ?",
       [email, username]
     );
     if (exists.length > 0)
-      return res.status(400).json({ message: "Email hoặc Username đã tồn tại!" });
+      return res.status(400).json({ message: "Đã tồn tại!" });
 
-    // Tạo OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     otpStore.set(email, { otp, expires: Date.now() + 300000 });
 
-    console.log(`🚀 Đang gửi yêu cầu đến Google Script cho: ${email}`);
+    console.log(`📧 Đang gửi OTP đến ${email} qua Google Script...`);
 
-    // --- GỌI GOOGLE APPS SCRIPT ---
-    const response = await fetch(GOOGLE_SCRIPT_URL, {
+    // --- SỬ DỤNG FETCH ĐỂ GỌI GOOGLE SCRIPT ---
+    const response = await fetch(OTP_SCRIPT_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email, otp: otp }),
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        to: email,                // Google script thường dùng biến 'to' hoặc 'email'
+        subject: "Nexus OTP Verification",
+        body: `Mã OTP của bạn là: <b>${otp}</b>. Mã này hết hạn sau 5 phút.`
+      }),
     });
 
-    const result = await response.json();
-
-    if (result.status === "success") {
-       console.log("✅ Google đã gửi mail thành công!");
-       res.json({ message: "Đã gửi mã OTP qua email!" });
+    if (response.ok) {
+        console.log("✅ Gửi OTP thành công");
+        res.json({ message: "OK" });
     } else {
-       console.error("❌ Lỗi từ Google Script:", result.message);
-       // Vẫn trả về thành công để Client không bị treo, nhưng in lỗi ra server log để debug
-       res.status(500).json({ message: "Lỗi gửi mail: " + result.message });
+        console.error("❌ Gửi OTP thất bại:", await response.text());
+        res.status(500).json({ message: "Lỗi gửi mail từ Script" });
     }
 
   } catch (e) {
-    console.error("❌ Lỗi Server:", e);
-    // Nếu lỗi cú pháp JSON (do Google chặn), thông báo rõ
-    if (e.name === "SyntaxError") {
-        res.status(500).json({ message: "Lỗi cấu hình Google Script: Chưa chọn 'Anyone' (Bất kỳ ai) khi Deploy." });
-    } else {
-        res.status(500).json({ message: "Lỗi hệ thống khi gửi mail." });
-    }
+    console.error("Lỗi send-otp:", e);
+    res.status(500).json({ message: "Lỗi hệ thống" });
   }
 });
 
@@ -163,23 +158,15 @@ app.post("/api/verify-otp", (req, res) => {
 
 app.post("/api/complete-register", async (req, res) => {
   const { username, password, email, nickname, avatar } = req.body;
-  
-  // Check OTP lần cuối
-  const data = otpStore.get(email);
-  if (!data) return res.status(400).json({ message: "Phiên OTP hết hạn" });
-
   try {
     const hash = await bcrypt.hash(password, 10);
-    const defaultAvatar = avatar || "https://res.cloudinary.com/your-cloud/image/upload/v1/default-avatar.png";
-
     await db.query(
       "INSERT INTO users (username, passwordHash, email, nickname, avatar) VALUES (?, ?, ?, ?, ?)",
-      [username, hash, email, nickname, defaultAvatar]
+      [username, hash, email, nickname, avatar]
     );
     otpStore.delete(email);
     res.status(201).json({ message: "OK" });
   } catch (e) {
-    console.error("DB Error:", e);
     res.status(500).json({ message: "Lỗi DB" });
   }
 });
@@ -336,7 +323,6 @@ app.post("/api/profile/update", authenticateToken, async (req, res) => {
   }
 });
 
-// --- POSTS ---
 app.post("/api/posts/create", authenticateToken, async (req, res) => {
   const { content, image } = req.body;
   const userId = req.user.userId;
@@ -368,20 +354,28 @@ app.post("/api/posts/:postId/react", authenticateToken, async (req, res) => {
   }
 });
 
+// --- POSTS ---
 app.get("/api/posts", authenticateToken, async (req, res) => {
   try {
     const currentUserId = req.user.userId;
+
     const query = `
-      SELECT p.*, u.username, u.nickname, u.avatar,
+      SELECT 
+        p.*, 
+        u.username, u.nickname, u.avatar,
         (SELECT COUNT(*) FROM post_reactions WHERE postId = p.id) AS reactionCount,
         (SELECT COUNT(*) FROM post_comments WHERE postId = p.id) AS commentCount,
         (SELECT type FROM post_reactions WHERE postId = p.id AND userId = ?) AS userReaction
-      FROM posts p JOIN users u ON p.userId = u.id 
-      ORDER BY p.createdAt DESC LIMIT 50
+      FROM posts p 
+      JOIN users u ON p.userId = u.id 
+      ORDER BY p.createdAt DESC 
+      LIMIT 50
     `;
+
     const [posts] = await db.query(query, [currentUserId]);
     res.json(posts);
   } catch (e) {
+    console.error(e);
     res.status(500).json({ message: "Error" });
   }
 });
@@ -475,7 +469,7 @@ app.get("/api/conversations", authenticateToken, async (req, res) => {
   }
 });
 
-// --- AI RECOMMENDATIONS & GEMINI ---
+// --- AI RECOMMENDATIONS ---
 app.post("/api/ai/recommend-friends", authenticateToken, async (req, res) => {
   const { criteria } = req.body;
   const userId = req.user.userId;
@@ -520,18 +514,17 @@ Trả về JSON: {"recommendations": [{"id": ID, "username": "...", "reason": ".
       if (jsonMatch) {
         const recommendations = JSON.parse(jsonMatch[0]);
         const recommendedIds = recommendations.recommendations.map((r) => r.id);
-        
-        if (recommendedIds.length > 0) {
-            const [detailedUsers] = await db.query(
-            `SELECT id, username, nickname, avatar FROM users WHERE id IN (${recommendedIds.join(",")})`
-            );
-            res.json({
-            recommendations: detailedUsers,
-            reasons: recommendations.recommendations,
-            });
-        } else {
-             res.json({ recommendations: [], reasons: [] });
-        }
+        const [detailedUsers] = await db.query(
+          `SELECT id, username, nickname, avatar FROM users WHERE id IN (${recommendedIds.join(
+            ","
+          )})`,
+          []
+        );
+
+        res.json({
+          recommendations: detailedUsers,
+          reasons: recommendations.recommendations,
+        });
       } else {
         res.status(400).json({ message: "Parse error" });
       }
@@ -544,6 +537,7 @@ Trả về JSON: {"recommendations": [{"id": ID, "username": "...", "reason": ".
   }
 });
 
+// --- GEMINI AI ---
 async function callGeminiAPI(text) {
   const modelName = "gemini-2.0-flash";
   const url = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
