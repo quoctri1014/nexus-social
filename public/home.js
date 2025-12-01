@@ -1,11 +1,12 @@
 document.addEventListener("DOMContentLoaded", async () => {
   const token = localStorage.getItem("token");
   if (!token) {
-    window.location.href = "/index.html"; // Chuyển hướng nếu chưa đăng nhập
+    window.location.href = "/index.html"; 
     return;
   }
 
   let currentUser = {};
+  let globalStories = []; // Lưu trữ danh sách story để xem
 
   // --- HELPER FUNCTIONS ---
   function getAvatar(user) {
@@ -41,6 +42,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         if(document.getElementById("nav-username")) document.getElementById("nav-username").textContent = displayName;
         if(document.getElementById("sidebar-name")) document.getElementById("sidebar-name").textContent = displayName;
         if(document.getElementById("sidebar-bio")) document.getElementById("sidebar-bio").textContent = currentUser.bio || "Chưa có tiểu sử";
+        
+        if(document.getElementById("edit-nickname")) document.getElementById("edit-nickname").value = displayName;
+        if(document.getElementById("edit-bio")) document.getElementById("edit-bio").value = currentUser.bio || "";
+        if(document.getElementById("edit-location")) document.getElementById("edit-location").value = currentUser.location || "";
+        if(document.getElementById("edit-work")) document.getElementById("edit-work").value = currentUser.work || "";
+        if(document.getElementById("edit-edu")) document.getElementById("edit-edu").value = currentUser.education || "";
       }
     } catch (e) {
       console.error("Lỗi load profile:", e);
@@ -60,13 +67,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     } catch (e) { console.error(e); }
   }
 
-  // --- 3. LOAD STORIES (MỚI: HỖ TRỢ VIDEO) ---
+  // --- 3. STORY LOGIC (VIEWER + UPLOAD) ---
   async function loadStories() {
       try {
           const res = await fetch("/api/stories");
           if (res.ok) {
-              const stories = await res.json();
-              renderStories(stories);
+              globalStories = await res.json(); // Lưu vào biến toàn cục
+              renderStories(globalStories);
           }
       } catch (e) { console.error(e); }
   }
@@ -76,7 +83,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (!storiesList) return;
       storiesList.innerHTML = "";
       
-      stories.forEach(s => {
+      stories.forEach((s, index) => {
           const authorName = s.nickname || s.username || "User";
           const authorAvatar = getAvatar({ avatar: s.avatar, username: s.username, nickname: s.nickname });
           
@@ -87,8 +94,9 @@ document.addEventListener("DOMContentLoaded", async () => {
               mediaHtml = `<img src="${s.image}" class="story-media" alt="story">`;
           }
 
+          // Thêm onclick="viewStory(index)"
           const html = `
-            <div class="story-card">
+            <div class="story-card" onclick="viewStory(${index})">
                 <div class="story-media-wrapper">${mediaHtml}</div>
                 <div class="story-profile"><img src="${authorAvatar}" class="story-profile-img"></div>
                 <div class="story-name">${authorName}</div>
@@ -98,7 +106,39 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
   }
 
-  // ĐĂNG STORY (Hỗ trợ ảnh + video)
+  // Mở Story Viewer
+  window.viewStory = (index) => {
+      const story = globalStories[index];
+      if (!story) return;
+
+      const viewer = document.getElementById("story-viewer");
+      const svAvatar = document.getElementById("sv-avatar");
+      const svName = document.getElementById("sv-name");
+      const svTime = document.getElementById("sv-time");
+      const svBody = document.getElementById("sv-body");
+
+      // Set Info
+      svAvatar.src = getAvatar({ avatar: story.avatar, username: story.username, nickname: story.nickname });
+      svName.textContent = story.nickname || story.username;
+      svTime.textContent = timeAgo(story.createdAt);
+
+      // Set Media
+      if (isVideo(story.image)) {
+          svBody.innerHTML = `<video src="${story.image}" class="sv-media-item" autoplay controls playsinline></video>`;
+      } else {
+          svBody.innerHTML = `<img src="${story.image}" class="sv-media-item">`;
+      }
+
+      viewer.classList.remove("hidden");
+  };
+
+  // Đóng Story Viewer
+  document.getElementById("close-story-viewer").addEventListener("click", () => {
+      document.getElementById("story-viewer").classList.add("hidden");
+      document.getElementById("sv-body").innerHTML = ""; // Stop video
+  });
+
+  // Upload Story
   const storyInput = document.getElementById("story-input");
   if (storyInput) {
       storyInput.addEventListener("change", async (e) => {
@@ -140,7 +180,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
   }
 
-  // --- RENDER FEED & ACTIONS ---
+  // --- RENDER FEED ---
   const feedContainer = document.getElementById("feed-container");
   
   const reactionMap = {
@@ -165,7 +205,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     const authorName = post.nickname || post.username || "Người dùng";
     const authorAvatar = getAvatar({ avatar: post.avatar, username: post.username, nickname: post.nickname });
     
-    // Số liệu từ Server
     const totalReactions = post.reactionCount || 0; 
     const totalComments = post.commentCount || 0;
     const userReaction = post.userReaction;
@@ -234,7 +273,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     `;
   }
 
-  // --- REACTION LOGIC ---
   window.handleSendReaction = async (postId, type) => {
     if(event) event.stopPropagation();
     try {
@@ -308,7 +346,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     commentsListEl.scrollTop = commentsListEl.scrollHeight;
   }
 
-  // Đóng Modal Comment
   const closeCommentBtn = document.getElementById("close-comment-modal-x");
   if(closeCommentBtn){
       closeCommentBtn.addEventListener("click", () => {
@@ -317,7 +354,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
   }
 
-  // Gửi Comment
   if(commentInput){
       commentInput.addEventListener("input", () => {
         if(sendCommentBtn) sendCommentBtn.disabled = commentInput.value.trim() === "";
@@ -346,9 +382,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
   }
   
-  // Xóa Comment
   window.deleteComment = async (commentId) => {
-      if(!confirm("Bạn có chắc muốn xóa bình luận này?")) return;
+      if(!confirm("Bạn có chắc muốn xóa?")) return;
       try {
           const res = await fetch(`/api/comments/${commentId}`, {
               method: "DELETE",
@@ -361,7 +396,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       } catch(e) { console.error(e); }
   };
 
-  // --- 5. ĐĂNG BÀI VIẾT (ẢNH/VIDEO) ---
+  // --- CREATE POST ---
   const postBtn = document.getElementById("post-btn");
   const postContentInput = document.getElementById("post-content-input");
   const postImageInput = document.getElementById("post-image-input");
@@ -420,15 +455,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
       });
   }
-  const removePreviewBtn = document.getElementById("remove-preview");
-  if(removePreviewBtn){
-      removePreviewBtn.addEventListener("click", () => {
-        postImageInput.value = "";
-        document.getElementById("post-preview-area").classList.add("hidden");
-      });
-  }
+  document.getElementById("remove-preview").addEventListener("click", () => {
+    postImageInput.value = "";
+    document.getElementById("post-preview-area").classList.add("hidden");
+  });
 
-  // --- HAMBURGER MENU & THEME ---
+  // UI HELPERS
   const hamburgerBtn = document.getElementById("hamburger-btn");
   const sidebarLeft = document.getElementById("sidebar-left");
   const overlay = document.getElementById("home-overlay");
@@ -461,7 +493,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const savedTheme = localStorage.getItem("theme") || "light";
   document.body.setAttribute("data-theme", savedTheme);
 
-  // --- PROFILE MODAL LOGIC ---
+  // Profile Modal
   const profileModal = document.getElementById("profile-modal");
   const openProfileBtn = document.getElementById("open-profile-btn");
   const closeProfileX = document.getElementById("close-modal-x");
@@ -517,17 +549,15 @@ document.addEventListener("DOMContentLoaded", async () => {
                   toggleProfileModal(false);
                   loadMyProfile();
               }
-          } catch(e) {
-              console.error(e);
-              alert("Lỗi cập nhật");
-          } finally {
+          } catch(e) { console.error(e); } 
+          finally {
               saveProfileBtn.textContent = "Lưu thay đổi";
               saveProfileBtn.disabled = false;
           }
       });
   }
 
-  // --- START APP ---
+  // START
   await loadMyProfile();
   await loadPosts();
   await loadStories();
