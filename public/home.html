@@ -43,7 +43,7 @@
           <div class="user-profile" id="open-profile-btn">
             <img id="nav-avatar" src="" alt="" />
             <div class="user-info-nav">
-              <span id="nav-username">Loading...</span>
+              <span id="nav-username">...</span>
             </div>
           </div>
           <div class="nav-btn" id="theme-toggle">
@@ -65,19 +65,6 @@
             <img id="sidebar-avatar" src="" alt="" />
             <h3 id="sidebar-name">User</h3>
             <p id="sidebar-bio" class="text-bio">Chưa có tiểu sử</p>
-            <div class="pcm-details">
-              <div class="pcm-row hidden" id="sidebar-location-row">
-                <i class="fas fa-map-marker-alt"></i>
-                <span id="sidebar-location"></span>
-              </div>
-              <div class="pcm-row hidden" id="sidebar-work-row">
-                <i class="fas fa-briefcase"></i> <span id="sidebar-work"></span>
-              </div>
-              <div class="pcm-row hidden" id="sidebar-edu-row">
-                <i class="fas fa-graduation-cap"></i>
-                <span id="sidebar-edu"></span>
-              </div>
-            </div>
           </div>
         </div>
         <div class="sidebar-content mt-20">
@@ -86,9 +73,6 @@
           </div>
           <div class="menu-item" onclick="window.location.href='/friends.html'">
             <i class="fas fa-users" style="color: #1da1f2"></i><span>Bạn bè</span>
-          </div>
-          <div class="menu-item" onclick="window.location.href='/ai-recommendations.html'">
-            <i class="fas fa-robot" style="color: #6366f1"></i><span>AI Gợi Ý</span>
           </div>
           <div class="menu-item" onclick="window.location.href='/chat.html'">
             <i class="fas fa-comments" style="color: #45bd62"></i><span>Messenger</span>
@@ -106,7 +90,7 @@
               <div class="add-story-btn"><i class="fas fa-plus"></i></div>
               <span>Tạo tin</span>
             </div>
-            <input type="file" id="story-input" hidden accept="image/*" />
+            <input type="file" id="story-input" hidden accept="image/*,video/*" />
           </div>
           <div id="stories-list" class="other-stories"></div>
         </div>
@@ -135,15 +119,37 @@
       </main>
 
       <aside class="sidebar-right">
-        <div class="sidebar-title" style="display: flex; justify-content: space-between; align-items: center;">
-          <span>Người liên hệ</span>
-          <i class="fas fa-search" onclick="window.location.href='/friends.html'" style="cursor: pointer; color: #65676b" title="Tìm bạn bè"></i>
-        </div>
+        <div class="sidebar-title">Người liên hệ</div>
         <div id="contact-list"></div>
       </aside>
     </div>
 
     <div class="home-overlay" id="home-overlay"></div>
+
+    <div id="comment-modal" class="modal-backdrop hidden">
+      <div class="modal-content comment-box">
+        <div class="modal-header">
+          <div style="flex:1"></div>
+          <h2>Bài viết của <span id="modal-post-author"></span></h2>
+          <div style="flex:1; display:flex; justify-content:flex-end;">
+             <div class="close-btn-wrapper" id="close-comment-modal-x">
+                <i class="fas fa-times"></i>
+             </div>
+          </div>
+        </div>
+        
+        <div class="modal-body comment-body" id="comments-list">
+           </div>
+
+        <div class="comment-input-section">
+            <img id="comment-my-avatar" src="" alt="" />
+            <div class="comment-input-wrapper">
+                <input type="text" id="comment-input" placeholder="Viết bình luận công khai..." />
+                <button id="send-comment-btn" disabled><i class="fas fa-paper-plane"></i></button>
+            </div>
+        </div>
+      </div>
+    </div>
 
     <div id="profile-modal" class="modal-backdrop hidden">
       <div class="modal-content profile-edit-box">
@@ -162,7 +168,7 @@
           <div class="profile-section">
             <h3>Thông tin chi tiết</h3>
             <div class="form-group"><label>Tên hiển thị</label><input type="text" id="edit-nickname" /></div>
-            <div class="form-group"><label>Tiêu sự</label><textarea id="edit-bio" rows="3"></textarea></div>
+            <div class="form-group"><label>Tiểu sử</label><textarea id="edit-bio" rows="3"></textarea></div>
             <div class="form-group-icon"><i class="fas fa-map-marker-alt"></i><input type="text" id="edit-location" placeholder="Sống tại" /></div>
             <div class="form-group-icon"><i class="fas fa-briefcase"></i><input type="text" id="edit-work" placeholder="Công việc" /></div>
             <div class="form-group-icon"><i class="fas fa-graduation-cap"></i><input type="text" id="edit-edu" placeholder="Học vấn" /></div>
@@ -171,29 +177,6 @@
         <div class="modal-footer" style="display: flex; gap: 10px">
           <button id="cancel-profile-btn" class="btn-secondary" style="flex: 1">Hủy</button>
           <button id="save-profile-btn" class="btn-primary" style="flex: 2">Lưu thay đổi</button>
-        </div>
-      </div>
-    </div>
-
-    <div id="comment-modal" class="modal-backdrop hidden">
-      <div class="modal-content comment-box">
-        <div class="modal-header">
-          <div style="flex:1"></div>
-          <h2>Bài viết của <span id="modal-post-author"></span></h2>
-          <div style="flex:1; display:flex; justify-content:flex-end;">
-             <div class="close-btn-wrapper" id="close-comment-modal-x">
-                <i class="fas fa-times"></i>
-             </div>
-          </div>
-        </div>
-        <div class="modal-body comment-body" id="comments-list">
-           </div>
-        <div class="comment-input-section">
-            <img id="comment-my-avatar" src="" alt="" />
-            <div class="comment-input-wrapper">
-                <input type="text" id="comment-input" placeholder="Viết bình luận công khai..." />
-                <button id="send-comment-btn" disabled><i class="fas fa-paper-plane"></i></button>
-            </div>
         </div>
       </div>
     </div>
