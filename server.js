@@ -23,7 +23,6 @@ const JWT_SECRET = process.env.JWT_SECRET || "secret_key_nexus_2025";
 const AI_BOT_ID = 1;
 
 // --- CẤU HÌNH GỬI MAIL (GOOGLE APPS SCRIPT) ---
-// Đã thay thế ID script của bạn vào đây
 const GOOGLE_SCRIPT_ID = "AKfycbzv4E2TAo7teW1ttV5bAoQ7qV0If9qfaIGUWgGuQ3Ky10UOu3n5HgJEnaerGlz5kHT82w";
 const OTP_SCRIPT_URL = `https://script.google.com/macros/s/${GOOGLE_SCRIPT_ID}/exec`;
 
@@ -46,7 +45,11 @@ app.use(express.json());
 
 // --- UPLOAD CONFIG ---
 const uploadDir = path.join(__dirname, "public/uploads");
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+// Đảm bảo thư mục tồn tại
+if (!fs.existsSync(uploadDir)) {
+    console.log("📁 Creating upload directory...");
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
 
 let upload;
 if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY) {
@@ -89,20 +92,46 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-// --- API ROUTES ---
-app.post("/api/upload", upload.array("files", 5), (req, res) => {
-  if (!req.files || req.files.length === 0)
-    return res.status(400).json({ message: "No file" });
-  const files = req.files.map((f) => {
-    let url = f.path;
-    if (!f.path.startsWith("http")) url = `/uploads/${f.filename}`;
-    return {
-      type: f.mimetype.includes("image") ? "image" : "audio",
-      name: f.originalname,
-      url: url,
-    };
-  });
-  res.json(files);
+// --- API ROUTES (ĐÃ SỬA LẠI ĐỂ BẮT LỖI 500) ---
+app.post("/api/upload", (req, res) => {
+    // Tạo wrapper để bắt lỗi từ Multer
+    const uploadMiddleware = upload.array("files", 5);
+
+    uploadMiddleware(req, res, (err) => {
+        // 1. Nếu có lỗi từ hệ thống upload (File quá lớn, lỗi mạng, lỗi thư mục...)
+        if (err) {
+            console.error("❌ UPLOAD ERROR:", err);
+            return res.status(500).json({ message: "Lỗi upload: " + err.message });
+        }
+
+        // 2. Kiểm tra có file không
+        if (!req.files || req.files.length === 0) {
+            return res.status(400).json({ message: "Chưa chọn file nào!" });
+        }
+
+        // 3. Xử lý đường dẫn file
+        try {
+            const files = req.files.map((f) => {
+                let url = f.path;
+                // Nếu là Local Upload, xử lý đường dẫn tương đối
+                if (!f.path.startsWith("http")) {
+                    const filename = f.filename || path.basename(f.path);
+                    url = `/uploads/${filename}`;
+                }
+                return {
+                    type: f.mimetype.includes("image") ? "image" : "audio",
+                    name: f.originalname,
+                    url: url,
+                };
+            });
+            
+            console.log("✅ Upload thành công:", files);
+            res.json(files);
+        } catch (processError) {
+            console.error("❌ Processing Error:", processError);
+            res.status(500).json({ message: "Lỗi xử lý file sau khi upload" });
+        }
+    });
 });
 
 // Auth & User APIs
